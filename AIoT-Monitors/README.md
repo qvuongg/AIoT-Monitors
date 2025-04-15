@@ -30,7 +30,6 @@ psql aiot_monitors < DB/DB.sql
 ### Chạy dự án
 Sử dụng script khởi động tự động:
 ```bash
-cd AIoT-Monitors
 chmod +x start.sh
 ./start.sh
 ```
@@ -39,7 +38,7 @@ Hoặc chạy riêng từng phần:
 
 #### Backend
 ```bash
-cd AIoT-Monitors/backend
+cd backend
 python start_profiles_api.py
 # python -m venv venv
 # source venv/bin/activate  # Trên Windows: venv\Scripts\activate
