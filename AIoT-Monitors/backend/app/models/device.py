@@ -2,12 +2,6 @@ from app import db
 from datetime import datetime
 from app.models.user import User
 
-# DeviceGroup-Device association table
-device_group_devices = db.Table('device_group_devices',
-    db.Column('device_group_id', db.Integer, db.ForeignKey('device_groups.group_id'), primary_key=True),
-    db.Column('device_id', db.Integer, db.ForeignKey('devices.device_id'), primary_key=True)
-)
-
 class DeviceStatus:
     ONLINE = 'online'
     OFFLINE = 'offline'
@@ -65,15 +59,17 @@ class Device(db.Model):
     customer_id = db.Column(db.String(50))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     created_by = db.Column(db.Integer, db.ForeignKey('users.user_id'))
+    assigned_by = db.Column(db.Integer, db.ForeignKey('users.user_id'))
     is_active = db.Column(db.Boolean, default=True)
     
     # Relationships
     creator = db.relationship('User', foreign_keys=[created_by])
+    assigner = db.relationship('User', foreign_keys=[assigned_by])
     sessions = db.relationship('Session', backref='device', lazy='dynamic')
     
     def __init__(self, device_name, ip_address, device_type, 
                  ssh_port=22, username=None, authentication_method='key', created_by=None, 
-                 group_id=None, location=None, customer_id=None):
+                 group_id=None, location=None, customer_id=None, assigned_by=None):
         self.device_name = device_name
         self.ip_address = ip_address
         self.device_type = device_type
@@ -84,6 +80,7 @@ class Device(db.Model):
         self.group_id = group_id
         self.location = location
         self.customer_id = customer_id
+        self.assigned_by = assigned_by
     
     def to_dict(self):
         try:
@@ -94,6 +91,10 @@ class Device(db.Model):
             creator_name = None
             if self.creator:
                 creator_name = self.creator.username
+                
+            assigner_name = None
+            if self.assigner:
+                assigner_name = self.assigner.username
                 
             # Đảm bảo dữ liệu thời gian là hợp lệ
             created_at_str = None
@@ -125,6 +126,7 @@ class Device(db.Model):
                 'group_name': group_name,
                 'created_at': created_at_str,
                 'created_by': creator_name,
+                'assigned_by': assigner_name,
                 'is_active': self.is_active,
                 'last_checked_at': last_checked_at_str
             }

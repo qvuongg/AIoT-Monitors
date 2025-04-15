@@ -11,12 +11,12 @@ devices_bp = Blueprint('devices', __name__)
 @devices_bp.route('/groups', methods=['POST'])
 @jwt_required()
 def create_device_group():
-    """Create a new device group (Team Lead only)"""
+    """Create a new device group (Admin only)"""
     current_user_id = get_jwt_identity()
     current_user = User.query.get(current_user_id)
     
-    if not current_user or not (current_user.is_admin() or current_user.is_team_lead()):
-        return jsonify({'error': 'Only admins and team leads can create device groups'}), 403
+    if not current_user or not current_user.is_admin():
+        return jsonify({'error': 'Only admins can create device groups'}), 403
     
     data = request.get_json()
     
@@ -79,7 +79,7 @@ def get_group_devices(group_id):
 @devices_bp.route('/groups/<int:group_id>/devices', methods=['POST'])
 @jwt_required()
 def add_device_to_group(group_id):
-    """Add a device to a group (Team Lead only)"""
+    """Add a device to a group (Admin or Team Lead)"""
     current_user_id = get_jwt_identity()
     current_user = User.query.get(current_user_id)
     
@@ -102,26 +102,42 @@ def add_device_to_group(group_id):
         return jsonify({'error': 'Device not found'}), 404
     
     # Check if device is already in the group
-    if device in group.devices:
+    if device.group_id == group_id:
         return jsonify({'error': 'Device is already in this group'}), 400
     
-    group.devices.append(device)
+    # Xác định xem có được phép gán thiết bị hay không
+    is_allowed_to_assign = (
+        current_user.is_admin() or  # Admin có thể gán bất kỳ thiết bị nào
+        device.assigned_by is None  # Chưa có ai gán thiết bị này
+    )
+    
+    if not is_allowed_to_assign:
+        return jsonify({
+            'error': 'This device has already been assigned to a group. Only Admin can reassign devices.',
+            'device': device.to_dict()
+        }), 403
+    
+    # Cập nhật thông tin nhóm và người gán
+    device.group_id = group_id
+    device.assigned_by = current_user.user_id
+    
     db.session.commit()
     
     return jsonify({
-        'message': 'Device added to group successfully'
+        'message': 'Device added to group successfully',
+        'device': device.to_dict()
     }), 200
 
 # Device Routes
 @devices_bp.route('', methods=['POST'])
 @jwt_required()
 def create_device():
-    """Create a new device (Team Lead only)"""
+    """Create a new device (Admin only)"""
     current_user_id = get_jwt_identity()
     current_user = User.query.get(current_user_id)
     
-    if not current_user or not (current_user.is_admin() or current_user.is_team_lead()):
-        return jsonify({'error': 'Only admins and team leads can create devices'}), 403
+    if not current_user or not current_user.is_admin():
+        return jsonify({'error': 'Only admins can create devices'}), 403
     
     data = request.get_json()
     
@@ -168,21 +184,7 @@ def get_devices():
         for device in devices:
             try:
                 # Lấy thông tin cơ bản của thiết bị
-                device_data = {
-                    'id': device.device_id,
-                    'name': device.device_name,
-                    'ip_address': device.ip_address,
-                    'device_type': device.device_type,
-                    'ssh_port': device.ssh_port,
-                    'username': device.username,
-                    'status': device.status if hasattr(device, 'status') else 'unknown'
-                }
-                
-                # Thêm các thông tin phụ nếu có
-                if hasattr(device, 'group_id') and device.group_id is not None:
-                    device_data['group_id'] = device.group_id
-                
-                # Không gọi device.group trực tiếp để tránh lỗi relationship
+                device_data = device.to_dict()  # Sử dụng to_dict() để lấy tất cả thông tin
                 device_list.append(device_data)
             except Exception as e:
                 print(f"Error processing device {device.device_id}: {str(e)}")
@@ -243,4 +245,59 @@ def get_device(device_id):
         return jsonify(device_data), 200
     except Exception as e:
         print(f"Error in get_device: {str(e)}")
-        return jsonify({'error': f'Error retrieving device: {str(e)}'}), 500 
+        return jsonify({'error': f'Error retrieving device: {str(e)}'}), 500
+
+@devices_bp.route('/unassigned', methods=['GET'])
+@jwt_required()
+def get_unassigned_devices():
+    """Get all devices that have not been assigned to any group or can be reassigned by admin"""
+    try:
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(current_user_id)
+        
+        # Lấy danh sách thiết bị dựa trên quyền của người dùng
+        if current_user.is_admin():
+            # Admin có thể xem tất cả thiết bị để gán lại
+            devices = Device.query.all()
+        else:
+            # Team Lead chỉ có thể xem thiết bị chưa được gán (assigned_by is NULL)
+            devices = Device.query.filter(Device.assigned_by == None).all()
+        
+        # Chuẩn bị danh sách thiết bị để trả về
+        device_list = []
+        
+        # Xử lý từng thiết bị
+        for device in devices:
+            try:
+                device_data = {
+                    'id': device.device_id,
+                    'name': device.device_name,
+                    'ip_address': device.ip_address,
+                    'device_type': device.device_type,
+                    'ssh_port': device.ssh_port,
+                    'username': device.username,
+                    'status': device.status if hasattr(device, 'status') else 'unknown',
+                    'created_by': device.created_by,
+                    'assigned_by': device.assigned_by,
+                    'group_id': device.group_id
+                }
+                device_list.append(device_data)
+            except Exception as e:
+                print(f"Error processing device {device.device_id}: {str(e)}")
+                device_list.append({
+                    'id': device.device_id,
+                    'name': device.device_name,
+                    'ip_address': device.ip_address,
+                    'device_type': device.device_type
+                })
+        
+        return jsonify({
+            'devices': device_list
+        }), 200
+    except Exception as e:
+        print(f"Error in get_unassigned_devices: {str(e)}")
+        traceback.print_exc()
+        return jsonify({
+            'error': f'Failed to retrieve unassigned devices: {str(e)}',
+            'devices': []
+        }), 500 

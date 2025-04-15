@@ -49,7 +49,8 @@ CREATE TABLE devices (
     customer_id VARCHAR(50),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_by INTEGER REFERENCES users(user_id) DEFERRABLE INITIALLY DEFERRED,
-    is_active BOOLEAN DEFAULT TRUE
+    is_active BOOLEAN DEFAULT TRUE,
+    assigned_by INTEGER REFERENCES users(user_id) DEFERRABLE INITIALLY DEFERRED
 );
 
 -- Create Command Lists Table
@@ -251,6 +252,7 @@ CREATE INDEX idx_command_logs_executed_at ON command_logs(executed_at);
 CREATE INDEX idx_devices_group_id ON devices(group_id);
 CREATE INDEX idx_user_profiles_user_id ON user_profiles(user_id);
 CREATE INDEX idx_audit_logs_user_id ON audit_logs(user_id);
+CREATE INDEX idx_devices_assigned_by ON devices(assigned_by);
 
 -- Self-reference foreign key for users.created_by (add after table is created)
 ALTER TABLE users ADD CONSTRAINT users_created_by_fkey 
@@ -291,16 +293,16 @@ INSERT INTO device_groups (group_name, description, created_by, is_active) VALUE
 ('Development Testing', 'Devices used for testing and development', 1, FALSE);
 
 -- Devices
-INSERT INTO devices (group_id, device_name, ip_address, device_type, ssh_port, username, authentication_method, last_checked_at, status, location, customer_id, created_by, is_active) VALUES
-(1, 'Factory Temp Sensor 1', '192.168.1.101', 'temperature_sensor', 22, 'device_user', 'key', NOW() - INTERVAL '1 hour', 'online', 'North Wing', 'CUST001', 1, TRUE),
-(1, 'Factory Humidity Sensor 1', '192.168.1.102', 'humidity_sensor', 22, 'device_user', 'key', NOW() - INTERVAL '2 hour', 'online', 'North Wing', 'CUST001', 1, TRUE),
-(1, 'Factory Controller 1', '192.168.1.103', 'controller', 22, 'admin_device', 'password', NOW() - INTERVAL '30 minutes', 'online', 'Control Room', 'CUST001', 1, TRUE),
-(2, 'Office HVAC Controller', '192.168.2.101', 'hvac_controller', 22, 'hvac_admin', 'key', NOW() - INTERVAL '45 minutes', 'online', 'Main Office', 'CUST002', 2, TRUE),
-(2, 'Reception Area Monitor', '192.168.2.102', 'environment_monitor', 22, 'monitor_user', 'key', NOW() - INTERVAL '3 hours', 'offline', 'Reception', 'CUST002', 2, TRUE),
-(3, 'Warehouse Temp 1', '192.168.3.101', 'temperature_sensor', 22, 'warehouse_user', 'key', NOW() - INTERVAL '15 minutes', 'online', 'Warehouse A', 'CUST003', 3, TRUE),
-(3, 'Warehouse Temp 2', '192.168.3.102', 'temperature_sensor', 22, 'warehouse_user', 'key', NOW() - INTERVAL '15 minutes', 'online', 'Warehouse B', 'CUST003', 3, TRUE),
-(4, 'Field Sensor Alpha', '10.0.0.101', 'field_monitor', 22, 'field_user', 'key', NOW() - INTERVAL '1 day', 'unknown', 'Field Site 1', 'CUST004', 4, TRUE),
-(5, 'Test Device 1', '10.10.10.101', 'test_device', 22, 'test_user', 'password', NOW() - INTERVAL '5 days', 'offline', 'Lab', 'INTERNAL', 1, FALSE);
+INSERT INTO devices (group_id, device_name, ip_address, device_type, ssh_port, username, authentication_method, last_checked_at, status, location, customer_id, created_by, is_active, assigned_by) VALUES
+(1, 'Factory Temp Sensor 1', '192.168.1.101', 'temperature_sensor', 22, 'device_user', 'key', NOW() - INTERVAL '1 hour', 'online', 'North Wing', 'CUST001', 1, TRUE, 1),
+(1, 'Factory Humidity Sensor 1', '192.168.1.102', 'humidity_sensor', 22, 'device_user', 'key', NOW() - INTERVAL '2 hour', 'online', 'North Wing', 'CUST001', 1, TRUE, 1),
+(1, 'Factory Controller 1', '192.168.1.103', 'controller', 22, 'admin_device', 'password', NOW() - INTERVAL '30 minutes', 'online', 'Control Room', 'CUST001', 1, TRUE, 1),
+(2, 'Office HVAC Controller', '192.168.2.101', 'hvac_controller', 22, 'hvac_admin', 'key', NOW() - INTERVAL '45 minutes', 'online', 'Main Office', 'CUST002', 2, TRUE, 2),
+(2, 'Reception Area Monitor', '192.168.2.102', 'environment_monitor', 22, 'monitor_user', 'key', NOW() - INTERVAL '3 hours', 'offline', 'Reception', 'CUST002', 2, TRUE, 2),
+(3, 'Warehouse Temp 1', '192.168.3.101', 'temperature_sensor', 22, 'warehouse_user', 'key', NOW() - INTERVAL '15 minutes', 'online', 'Warehouse A', 'CUST003', 3, TRUE, 3),
+(3, 'Warehouse Temp 2', '192.168.3.102', 'temperature_sensor', 22, 'warehouse_user', 'key', NOW() - INTERVAL '15 minutes', 'online', 'Warehouse B', 'CUST003', 3, TRUE, 3),
+(4, 'Field Sensor Alpha', '10.0.0.101', 'field_monitor', 22, 'field_user', 'key', NOW() - INTERVAL '1 day', 'unknown', 'Field Site 1', 'CUST004', 4, TRUE, 4),
+(5, 'Test Device 1', '10.10.10.101', 'test_device', 22, 'test_user', 'password', NOW() - INTERVAL '5 days', 'offline', 'Lab', 'INTERNAL', 1, FALSE, 1);
 
 -- Command Lists
 INSERT INTO command_lists (list_name, description, created_by, is_active) VALUES
@@ -397,4 +399,7 @@ INSERT INTO alerts (user_id, device_id, alert_type, alert_message, created_at, s
 (NULL, 3, 'disk_space_low', 'Disk space below 15%', NOW() - INTERVAL '2 days', 'warning', TRUE, NOW() - INTERVAL '1 day', 4),
 (NULL, 8, 'battery_low', 'Battery level below 20%', NOW() - INTERVAL '4 hours', 'info', FALSE, NULL, NULL);
 
-COMMIT; 
+COMMIT;
+
+-- Cập nhật devices đã tồn tại với giá trị null (chưa được gán)
+COMMENT ON COLUMN devices.assigned_by IS 'ID người dùng đã gán thiết bị vào nhóm, khác với created_by là người tạo thiết bị'; 

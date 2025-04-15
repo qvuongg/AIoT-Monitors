@@ -40,10 +40,10 @@ Hoặc chạy riêng từng phần:
 #### Backend
 ```bash
 cd AIoT-Monitors/backend
-python -m venv venv
-source venv/bin/activate  # Trên Windows: venv\Scripts\activate
-pip install -r requirements.txt
 python start_profiles_api.py
+# python -m venv venv
+# source venv/bin/activate  # Trên Windows: venv\Scripts\activate
+# pip install -r requirements.txt
 ```
 
 Backend API sẽ chạy tại: http://localhost:8000
@@ -103,11 +103,13 @@ Sử dụng các tài khoản sau để đăng nhập:
 ### Devices
 - `GET /api/devices`: Lấy danh sách tất cả thiết bị
 - `GET /api/devices/{device_id}`: Lấy thông tin chi tiết thiết bị
-- `POST /api/devices`: Tạo thiết bị mới (Admin, Team Lead)
+- `POST /api/devices`: Tạo thiết bị mới (Chỉ Admin)
+- `GET /api/devices/unassigned`: Lấy danh sách thiết bị chưa được gán (assigned_by = null)
 - `GET /api/devices/groups`: Lấy danh sách nhóm thiết bị
 - `GET /api/devices/groups/{group_id}`: Lấy thông tin chi tiết nhóm thiết bị
-- `POST /api/devices/groups`: Tạo nhóm thiết bị mới (Admin, Team Lead)
+- `POST /api/devices/groups`: Tạo nhóm thiết bị mới (Chỉ Admin)
 - `GET /api/devices/groups/{group_id}/devices`: Lấy danh sách thiết bị trong nhóm
+- `POST /api/devices/groups/{group_id}/devices`: Gán thiết bị vào nhóm (Admin, Team Lead)
 
 ### Commands
 - `GET /api/commands`: Lấy danh sách tất cả lệnh
@@ -168,10 +170,17 @@ AIoT-Monitors/
 - Xử lý lỗi khi token hết hạn
 
 ## Vai trò người dùng
-- **Admin**: Quyền truy cập đầy đủ vào tất cả tính năng
-- **Team Lead**: Quản lý thiết bị, nhóm thiết bị, lệnh và profiles
+- **Admin**: Quyền truy cập đầy đủ vào tất cả tính năng, bao gồm tạo mới thiết bị và tạo mới nhóm thiết bị
+- **Team Lead**: Chỉ có thể gán thiết bị vào nhóm, quản lý lệnh và profiles
 - **Supervisor**: Giám sát phiên làm việc và có thể kết thúc phiên của người khác
 - **Operator**: Tạo phiên, thực thi lệnh và chỉnh sửa file
 
 ## Thông tin liên hệ
 Nếu bạn gặp bất kỳ vấn đề nào khi sử dụng hệ thống, vui lòng liên hệ với đội phát triển. 
+
+## Thay đổi mới nhất
+- **Phân quyền thiết bị**: Chỉ Admin mới có thể tạo thiết bị mới và tạo nhóm thiết bị trong hệ thống
+- **Gán thiết bị vào nhóm**: Team Lead chỉ có thể gán thiết bị vào nhóm, không thể thay đổi nhóm đã được gán
+- **Dashboard cải tiến**: Hiển thị danh sách thiết bị chưa được gán (assigned_by = null) và nút "Thêm vào nhóm" cho Admin và Team Lead
+- **Truy vết hành động**: Hệ thống lưu thông tin về người thực hiện gán thiết bị thông qua cột assigned_by
+- **Thêm cột assigned_by**: Lưu trữ thông tin người gán thiết bị, khác với created_by (người tạo thiết bị) 
