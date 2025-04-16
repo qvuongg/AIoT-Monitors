@@ -58,7 +58,7 @@ def get_profile(profile_id):
 @profiles_bp.route('', methods=['POST'])
 @jwt_required()
 def create_profile():
-    """Tạo profile mới (Admin và Team Lead)"""
+    """Tạo profile mới (Team Lead)"""
     try:
         current_user_id = get_jwt_identity()
         current_user = User.query.get(current_user_id)

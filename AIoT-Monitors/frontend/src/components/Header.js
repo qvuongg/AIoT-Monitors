@@ -32,7 +32,7 @@ const Header = ({ user, setIsAuthenticated, setUser }) => {
                         <li>
                             <Link to="/dashboard">Dashboard</Link>
                         </li>
-                        {user && ['admin', 'team_lead', 'supervisor'].includes(user.role) && (
+                        {user && ['team_lead'].includes(user.role) && (
                             <li>
                                 <Link to="/profiles">Profiles</Link>
                             </li>

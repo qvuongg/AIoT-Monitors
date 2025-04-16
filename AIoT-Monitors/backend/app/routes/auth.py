@@ -85,7 +85,7 @@ def login():
         return jsonify({'error': 'Account is disabled'}), 403
     
     # Generate JWT token - use user_id instead of id
-    access_token = create_access_token(identity=user.user_id)
+    access_token = create_access_token(identity=str(user.user_id))
     
     return jsonify({
         'access_token': access_token,
