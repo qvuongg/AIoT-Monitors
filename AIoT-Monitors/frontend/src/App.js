@@ -7,6 +7,7 @@ import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import SessionView from './components/SessionView';
 import SupervisorDashboard from './components/SupervisorDashboard';
+import ProfileDashboard from './components/ProfileDashboard';
 import Header from './components/Header';
 
 // Import services
@@ -124,13 +125,8 @@ function App() {
           <Route
             path="/profiles"
             element={
-              <ProtectedRoute roles={['admin', 'team_lead', 'supervisor']}>
-                <div className="temp-page">
-                  <h2>Profiles Management</h2>
-                  <p>This page will show device and command profiles with user assignments.</p>
-                  <p>Access the API endpoints at: <code>{process.env.REACT_APP_API_URL}/api/profiles</code></p>
-                  <p>API documentation for profiles is available in the backend's documentation.</p>
-                </div>
+              <ProtectedRoute roles={['team_lead']}>
+                <ProfileDashboard />
               </ProtectedRoute>
             }
           />
