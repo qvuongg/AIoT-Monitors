@@ -108,7 +108,7 @@ function App() {
             path="/team-lead"
             element={
               <ProtectedRoute roles={['admin', 'team_lead']}>
-                <CreateCommandList />
+                <div>Team Lead Page (To be implemented)</div>
               </ProtectedRoute>
             }
           />
