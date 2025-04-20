@@ -1,10 +1,11 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app import db
-from app.models.user import User, UserRole
+from app.models.user import User, UserRole, UserProfile
 from app.models.profile import Profile
 from app.models.device import DeviceGroup
 from app.models.command import CommandList
+from datetime import datetime
 
 profiles_bp = Blueprint('profiles', __name__)
 
@@ -227,7 +228,9 @@ def delete_profile(profile_id):
             }), 404
         
         # Kiểm tra xem profile có đang được sử dụng không
-        if profile.users and len(profile.users) > 0:
+        has_active_users = UserProfile.query.filter_by(profile_id=profile_id, is_active=True).count() > 0
+        
+        if has_active_users:
             # Thay vì xóa, đánh dấu là không hoạt động
             profile.is_active = False
             db.session.commit()
@@ -246,6 +249,7 @@ def delete_profile(profile_id):
                 'message': 'Đã xóa profile thành công'
             }), 200
     except Exception as e:
+        db.session.rollback()
         return jsonify({
             'success': False,
             'error': str(e)
@@ -278,19 +282,20 @@ def get_profile_users(profile_id):
 @profiles_bp.route('/<int:profile_id>/users', methods=['POST'])
 @jwt_required()
 def assign_profile_to_user(profile_id):
-    """Gán profile cho người dùng (Admin và Team Lead)"""
+    """Gán profile cho user (Admin và Team Lead)"""
     try:
         current_user_id = get_jwt_identity()
         current_user = User.query.get(current_user_id)
         
+        # Kiểm tra quyền
         if not current_user or not (current_user.is_admin() or current_user.is_team_lead()):
             return jsonify({
                 'success': False,
-                'error': 'Chỉ Admin và Team Lead mới có quyền gán profile cho người dùng'
+                'error': 'Chỉ Admin và Team Lead mới có quyền gán profile cho user'
             }), 403
         
+        # Kiểm tra profile tồn tại
         profile = Profile.get_profile_by_id(profile_id)
-        
         if not profile:
             return jsonify({
                 'success': False,
@@ -299,35 +304,54 @@ def assign_profile_to_user(profile_id):
         
         data = request.get_json()
         
-        if not data or 'user_id' not in data:
+        # Kiểm tra dữ liệu đầu vào
+        if 'user_id' not in data:
             return jsonify({
                 'success': False,
-                'error': 'Yêu cầu phải có user_id'
+                'error': 'Thiếu thông tin user_id'
             }), 400
+            
+        user_id = data['user_id']
         
-        user = User.query.get(data['user_id'])
-        
+        # Kiểm tra user tồn tại
+        user = User.query.get(user_id)
         if not user:
             return jsonify({
                 'success': False,
-                'error': 'Người dùng không tồn tại'
+                'error': 'User không tồn tại'
             }), 404
+            
+        # Kiểm tra xem user đã có profile này chưa
+        existing_profile = UserProfile.query.filter_by(
+            user_id=user_id, 
+            profile_id=profile_id,
+            is_active=True
+        ).first()
         
-        # Kiểm tra người dùng đã có profile này chưa
-        if profile in user.profiles:
+        if existing_profile:
             return jsonify({
                 'success': False,
-                'error': 'Người dùng đã được gán profile này'
+                'error': 'User đã được gán profile này'
             }), 400
+            
+        # Tạo mối quan hệ user-profile mới với tracking information
+        user_profile = UserProfile(
+            user_id=user_id,
+            profile_id=profile_id,
+            assigned_at=datetime.utcnow(),
+            assigned_by=current_user_id,
+            is_active=True
+        )
         
-        user.profiles.append(profile)
+        db.session.add(user_profile)
         db.session.commit()
         
         return jsonify({
             'success': True,
-            'message': 'Gán profile cho người dùng thành công'
-        }), 200
+            'message': f'User {user.email} đã được gán profile {profile.profile_name}'
+        }), 201
     except Exception as e:
+        db.session.rollback()
         return jsonify({
             'success': False,
             'error': str(e)
@@ -336,48 +360,57 @@ def assign_profile_to_user(profile_id):
 @profiles_bp.route('/<int:profile_id>/users/<int:user_id>', methods=['DELETE'])
 @jwt_required()
 def remove_user_from_profile(profile_id, user_id):
-    """Hủy gán profile cho người dùng (Admin và Team Lead)"""
+    """Xóa user khỏi profile (Admin và Team Lead)"""
     try:
         current_user_id = get_jwt_identity()
         current_user = User.query.get(current_user_id)
         
+        # Kiểm tra quyền
         if not current_user or not (current_user.is_admin() or current_user.is_team_lead()):
             return jsonify({
                 'success': False,
-                'error': 'Chỉ Admin và Team Lead mới có quyền hủy gán profile cho người dùng'
+                'error': 'Chỉ Admin và Team Lead mới có quyền xóa user khỏi profile'
             }), 403
         
+        # Kiểm tra profile tồn tại
         profile = Profile.get_profile_by_id(profile_id)
-        
         if not profile:
             return jsonify({
                 'success': False,
                 'error': 'Profile không tồn tại'
             }), 404
         
+        # Kiểm tra user tồn tại
         user = User.query.get(user_id)
-        
         if not user:
             return jsonify({
                 'success': False,
-                'error': 'Người dùng không tồn tại'
+                'error': 'User không tồn tại'
             }), 404
+            
+        # Kiểm tra xem user có profile này không
+        user_profile = UserProfile.query.filter_by(
+            user_id=user_id, 
+            profile_id=profile_id,
+            is_active=True
+        ).first()
         
-        # Kiểm tra người dùng có profile này không
-        if profile not in user.profiles:
+        if not user_profile:
             return jsonify({
                 'success': False,
-                'error': 'Người dùng chưa được gán profile này'
-            }), 400
+                'error': 'User chưa được gán profile này'
+            }), 404
         
-        user.profiles.remove(profile)
+        # Thay vì xóa quan hệ, chỉ đánh dấu là không còn active
+        user_profile.is_active = False
         db.session.commit()
         
         return jsonify({
             'success': True,
-            'message': 'Hủy gán profile cho người dùng thành công'
+            'message': f'User {user.email} đã được xóa khỏi profile {profile.profile_name}'
         }), 200
     except Exception as e:
+        db.session.rollback()
         return jsonify({
             'success': False,
             'error': str(e)

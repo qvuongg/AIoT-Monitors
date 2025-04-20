@@ -8,6 +8,10 @@ import Dashboard from './components/Dashboard';
 import SessionView from './components/SessionView';
 import SupervisorDashboard from './components/SupervisorDashboard';
 import ProfileDashboard from './components/ProfileDashboard';
+import CreateCommandList from './components/CreateCommandList';
+import ProfileManagement from './components/ProfileManagement';
+import AccountManagement from './components/AccountManagement';
+import ChangePassword from './components/ChangePassword';
 import Header from './components/Header';
 
 // Import services
@@ -99,13 +103,32 @@ function App() {
             path="/admin"
             element={
               <ProtectedRoute roles={['admin']}>
-                <div>Admin Page (To be implemented)</div>
+                <AccountManagement />
               </ProtectedRoute>
             }
           />
 
           <Route
-            path="/team-lead"
+            path="/accounts"
+            element={
+              <ProtectedRoute roles={['admin']}>
+                <AccountManagement />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/change-password"
+            element={
+              <ProtectedRoute>
+                <ChangePassword />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Team Lead Routes */}
+          <Route
+            path="/command-lists"
             element={
               <ProtectedRoute roles={['admin', 'team_lead']}>
                 <div>Team Lead Page (To be implemented)</div>
@@ -114,10 +137,10 @@ function App() {
           />
 
           <Route
-            path="/supervisor"
+            path="/assign-profiles"
             element={
-              <ProtectedRoute roles={['admin', 'supervisor']}>
-                <SupervisorDashboard user={user} />
+              <ProtectedRoute roles={['admin', 'team_lead']}>
+                <ProfileManagement />
               </ProtectedRoute>
             }
           />
@@ -127,6 +150,15 @@ function App() {
             element={
               <ProtectedRoute roles={['team_lead']}>
                 <ProfileDashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/supervisor"
+            element={
+              <ProtectedRoute roles={['admin', 'supervisor']}>
+                <SupervisorDashboard user={user} />
               </ProtectedRoute>
             }
           />

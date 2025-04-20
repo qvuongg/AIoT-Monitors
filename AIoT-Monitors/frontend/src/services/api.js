@@ -254,6 +254,78 @@ const authService = {
 
     isAuthenticated: () => {
         return !!localStorage.getItem('token');
+    },
+
+    // Tạo tài khoản operator
+    createOperator: async (userData) => {
+        try {
+            const response = await axios.post('/api/auth/create/operator', userData);
+            return response.data;
+        } catch (error) {
+            console.error('Error creating operator account:', error);
+            throw error;
+        }
+    },
+
+    // Tạo tài khoản supervisor
+    createSupervisor: async (userData) => {
+        try {
+            const response = await axios.post('/api/auth/create/supervisor', userData);
+            return response.data;
+        } catch (error) {
+            console.error('Error creating supervisor account:', error);
+            throw error;
+        }
+    },
+
+    // Tạo tài khoản team lead
+    createTeamLead: async (userData) => {
+        try {
+            const response = await axios.post('/api/auth/create/team-lead', userData);
+            return response.data;
+        } catch (error) {
+            console.error('Error creating team lead account:', error);
+            throw error;
+        }
+    },
+
+    // Lấy danh sách tất cả người dùng
+    getAllUsers: async () => {
+        try {
+            const response = await axios.get('/api/auth/users');
+            return response.data || [];
+        } catch (error) {
+            console.error('Error fetching users:', error);
+            return [];
+        }
+    },
+
+    // Đổi mật khẩu cá nhân
+    changePassword: async (currentPassword, newPassword) => {
+        try {
+            const response = await axios.post('/api/auth/change-password', {
+                current_password: currentPassword,
+                new_password: newPassword
+            });
+            return response.data;
+        } catch (error) {
+            console.error('Error changing password:', error);
+            throw error;
+        }
+    },
+
+    // Admin reset mật khẩu cho người dùng
+    resetPassword: async (userId, newPassword) => {
+        try {
+            const response = await axios.post('/api/auth/reset-password', {
+                user_id: userId,
+                new_password: newPassword
+            });
+            return response.data;
+        } catch (error) {
+            console.error('Error resetting password:', error);
+            throw error;
+        }
     }
 };
 

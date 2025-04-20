@@ -13,11 +13,30 @@ class UserRole:
     def all_roles(cls):
         return [cls.ADMIN, cls.TEAM_LEAD, cls.SUPERVISOR, cls.OPERATOR]
 
-# User-Profile association table
-user_profiles = db.Table('user_profiles',
-    db.Column('user_id', db.Integer, db.ForeignKey('users.user_id'), primary_key=True),
-    db.Column('profile_id', db.Integer, db.ForeignKey('profiles.profile_id'), primary_key=True)
-)
+# Remove the association table since we're using the UserProfile model
+
+class UserProfile(db.Model):
+    __tablename__ = 'user_profiles'
+    
+    assignment_id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), nullable=False)
+    profile_id = db.Column(db.Integer, db.ForeignKey('profiles.profile_id'), nullable=False)
+    assigned_at = db.Column(db.DateTime, default=datetime.utcnow)
+    assigned_by = db.Column(db.Integer, db.ForeignKey('users.user_id'))
+    is_active = db.Column(db.Boolean, default=True)
+    
+    # Relationships
+    user = db.relationship('User', foreign_keys=[user_id], backref=db.backref('profile_assignments', lazy='dynamic'))
+    profile = db.relationship('Profile', backref=db.backref('user_assignments', lazy='dynamic'))
+    assigner = db.relationship('User', foreign_keys=[assigned_by])
+    
+    def __init__(self, user_id, profile_id, assigned_by=None, assigned_at=None, is_active=True):
+        self.user_id = user_id
+        self.profile_id = profile_id
+        self.assigned_by = assigned_by
+        if assigned_at:
+            self.assigned_at = assigned_at
+        self.is_active = is_active
 
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
@@ -35,8 +54,12 @@ class User(UserMixin, db.Model):
     
     # Relationships
     sessions = db.relationship('Session', backref='user', lazy='dynamic', foreign_keys='Session.user_id')
-    profiles = db.relationship('Profile', secondary=user_profiles, lazy='subquery',
-                          backref=db.backref('users', lazy=True))
+    
+    # Updated to use profiles through UserProfile model instead of association table
+    @property
+    def profiles(self):
+        active_assignments = UserProfile.query.filter_by(user_id=self.user_id, is_active=True).all()
+        return [assignment.profile for assignment in active_assignments]
     
     def __init__(self, username, email, password=None, password_hash=None, role=None, phone=None):
         self.username = username

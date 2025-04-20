@@ -1,65 +1,89 @@
 import React from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import axios from 'axios';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { authService } from '../services/api';
+import '../styles/Header.css';
 
 const Header = ({ user, setIsAuthenticated, setUser }) => {
     const navigate = useNavigate();
 
     const handleLogout = () => {
-        // Xóa token JWT và thông tin người dùng từ localStorage
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-
-        // Xóa header Authorization
-        delete axios.defaults.headers.common['Authorization'];
-
-        // Cập nhật state
+        authService.logout();
         setIsAuthenticated(false);
         setUser(null);
-
-        // Chuyển hướng về trang đăng nhập
         navigate('/login');
     };
 
     return (
-        <header className="app-header">
-            <div className="header-left">
-                <h1>AIoT Monitors</h1>
-            </div>
-            <div className="header-center">
+        <header className="main-header">
+            <div className="header-container">
+                <div className="logo">
+                    <h1>AIoT Monitors</h1>
+                </div>
                 <nav className="main-nav">
-                    <ul>
-                        <li>
-                            <Link to="/dashboard">Dashboard</Link>
+                    <ul className="nav-list">
+                        {/* Tất cả các vai trò đều có Dashboard */}
+                        <li className="nav-item">
+                            <NavLink to="/dashboard" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
+                                Dashboard
+                            </NavLink>
                         </li>
-                        {user && ['team_lead'].includes(user.role) && (
-                            <li>
-                                <Link to="/profiles">Profiles</Link>
-                            </li>
-                        )}
-                        {user && ['admin', 'supervisor'].includes(user.role) && (
-                            <li>
-                                <Link to="/supervisor">Supervisor</Link>
-                            </li>
-                        )}
+
+                        {/* Admin: Dashboard, Quản lý tài khoản */}
                         {user && user.role === 'admin' && (
-                            <li>
-                                <Link to="/admin">Admin</Link>
+                            <>
+                                <li className="nav-item">
+                                    <NavLink to="/accounts" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
+                                        Quản lý tài khoản
+                                    </NavLink>
+                                </li>
+                                <li className="nav-item">
+                                    <NavLink to="/change-password" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
+                                        Đổi mật khẩu
+                                    </NavLink>
+                                </li>
+                            </>
+                        )}
+
+                        {/* Team Lead: Dashboard, Command Lists, Profiles, Profile Assignment */}
+                        {user && user.role === 'team_lead' && (
+                            <>
+                                <li className="nav-item">
+                                    <NavLink to="/command-lists" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
+                                        Command Lists
+                                    </NavLink>
+                                </li>
+                                <li className="nav-item">
+                                    <NavLink to="/profiles" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
+                                        Create Profile
+                                    </NavLink>
+                                </li>
+                                <li className="nav-item">
+                                    <NavLink to="/assign-profiles" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
+                                        Assign Profile
+                                    </NavLink>
+                                </li>
+                            </>
+                        )}
+
+                        {/* Supervisor only */}
+                        {user && user.role === 'supervisor' && (
+                            <li className="nav-item">
+                                <NavLink to="/supervisor" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
+                                    Giám sát
+                                </NavLink>
                             </li>
                         )}
                     </ul>
                 </nav>
-            </div>
-            <div className="header-right">
-                {user && (
+                <div className="user-controls">
                     <div className="user-info">
-                        <span className="username">{user.username}</span>
-                        <span className="role-badge">{user.role}</span>
-                        <button className="logout-button" onClick={handleLogout}>
-                            Đăng xuất
-                        </button>
+                        <span className="username">{user ? user.username : 'Guest'}</span>
+                        {user && <span className={`user-role ${user.role}`}>{user.role}</span>}
                     </div>
-                )}
+                    <button onClick={handleLogout} className="logout-btn">
+                        Đăng xuất
+                    </button>
+                </div>
             </div>
         </header>
     );

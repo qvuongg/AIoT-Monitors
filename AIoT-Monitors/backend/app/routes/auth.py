@@ -103,15 +103,26 @@ def logout():
 @auth_bp.route('/users', methods=['GET'])
 @jwt_required()
 def get_users():
-    """Get all users (admin only)"""
+    """Get all users (admin and team_lead)"""
     current_user_id = get_jwt_identity()
-    admin = User.query.get(current_user_id)
+    current_user = User.query.get(current_user_id)
     
-    if not admin or not admin.is_admin():
-        return jsonify({'error': 'Only admins can view user list'}), 403
+    if not current_user:
+        return jsonify({'error': 'User not found'}), 404
     
-    users = User.query.all()
-    return jsonify([user.to_dict() for user in users]), 200
+    # Admin can see all users
+    if current_user.is_admin():
+        users = User.query.all()
+        return jsonify([user.to_dict() for user in users]), 200
+    
+    # Team Lead can only see operators and supervisors
+    elif current_user.is_team_lead():
+        users = User.query.filter(User.role.in_([UserRole.OPERATOR, UserRole.SUPERVISOR])).all()
+        return jsonify([user.to_dict() for user in users]), 200
+    
+    # Other roles cannot access user list
+    else:
+        return jsonify({'error': 'Unauthorized access'}), 403
 
 @auth_bp.route('/user/<int:user_id>', methods=['GET'])
 @jwt_required()
@@ -248,4 +259,142 @@ def change_password():
     user.password_hash = data['new_password']
     db.session.commit()
     
-    return jsonify({'message': 'Password changed successfully'}), 200 
+    return jsonify({'message': 'Password changed successfully'}), 200
+
+@auth_bp.route('/create/operator', methods=['POST'])
+@jwt_required()
+def create_operator():
+    """Admin creates a new operator user account"""
+    current_user_id = get_jwt_identity()
+    current_user = User.query.get(current_user_id)
+    
+    if not current_user or not current_user.is_admin():
+        return jsonify({'error': 'Only admins can create operator accounts'}), 403
+    
+    data = request.get_json()
+    
+    # Validate required fields
+    required_fields = ['username', 'email', 'password']
+    for field in required_fields:
+        if field not in data:
+            return jsonify({'error': f'Missing required field: {field}'}), 400
+    
+    # Check if user already exists
+    if User.query.filter_by(username=data['username']).first():
+        return jsonify({'error': 'Username already exists'}), 400
+    
+    if User.query.filter_by(email=data['email']).first():
+        return jsonify({'error': 'Email already exists'}), 400
+    
+    # Create the new operator user
+    new_user = User(
+        username=data['username'],
+        email=data['email'],
+        password=data['password'],
+        role=UserRole.OPERATOR,
+        phone=data.get('phone')
+    )
+    
+    # Set created_by to the current admin
+    new_user.created_by = current_user.user_id
+    
+    db.session.add(new_user)
+    db.session.commit()
+    
+    return jsonify({
+        'success': True,
+        'message': 'Operator account created successfully',
+        'user': new_user.to_dict()
+    }), 201
+
+@auth_bp.route('/create/supervisor', methods=['POST'])
+@jwt_required()
+def create_supervisor():
+    """Admin creates a new supervisor user account"""
+    current_user_id = get_jwt_identity()
+    current_user = User.query.get(current_user_id)
+    
+    if not current_user or not current_user.is_admin():
+        return jsonify({'error': 'Only admins can create supervisor accounts'}), 403
+    
+    data = request.get_json()
+    
+    # Validate required fields
+    required_fields = ['username', 'email', 'password']
+    for field in required_fields:
+        if field not in data:
+            return jsonify({'error': f'Missing required field: {field}'}), 400
+    
+    # Check if user already exists
+    if User.query.filter_by(username=data['username']).first():
+        return jsonify({'error': 'Username already exists'}), 400
+    
+    if User.query.filter_by(email=data['email']).first():
+        return jsonify({'error': 'Email already exists'}), 400
+    
+    # Create the new supervisor user
+    new_user = User(
+        username=data['username'],
+        email=data['email'],
+        password=data['password'],
+        role=UserRole.SUPERVISOR,
+        phone=data.get('phone')
+    )
+    
+    # Set created_by to the current admin
+    new_user.created_by = current_user.user_id
+    
+    db.session.add(new_user)
+    db.session.commit()
+    
+    return jsonify({
+        'success': True,
+        'message': 'Supervisor account created successfully',
+        'user': new_user.to_dict()
+    }), 201
+
+@auth_bp.route('/create/team-lead', methods=['POST'])
+@jwt_required()
+def create_team_lead():
+    """Admin creates a new team lead user account"""
+    current_user_id = get_jwt_identity()
+    current_user = User.query.get(current_user_id)
+    
+    if not current_user or not current_user.is_admin():
+        return jsonify({'error': 'Only admins can create team lead accounts'}), 403
+    
+    data = request.get_json()
+    
+    # Validate required fields
+    required_fields = ['username', 'email', 'password']
+    for field in required_fields:
+        if field not in data:
+            return jsonify({'error': f'Missing required field: {field}'}), 400
+    
+    # Check if user already exists
+    if User.query.filter_by(username=data['username']).first():
+        return jsonify({'error': 'Username already exists'}), 400
+    
+    if User.query.filter_by(email=data['email']).first():
+        return jsonify({'error': 'Email already exists'}), 400
+    
+    # Create the new team lead user
+    new_user = User(
+        username=data['username'],
+        email=data['email'],
+        password=data['password'],
+        role=UserRole.TEAM_LEAD,
+        phone=data.get('phone')
+    )
+    
+    # Set created_by to the current admin
+    new_user.created_by = current_user.user_id
+    
+    db.session.add(new_user)
+    db.session.commit()
+    
+    return jsonify({
+        'success': True,
+        'message': 'Team Lead account created successfully',
+        'user': new_user.to_dict()
+    }), 201 

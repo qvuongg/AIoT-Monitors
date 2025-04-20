@@ -1,10 +1,11 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app import db
-from app.models.user import User, UserRole
+from app.models.user import User, UserRole, UserProfile
 from app.models.command import Command, CommandList
 from app.models.profile import Profile
 from app.models.device import DeviceGroup
+from datetime import datetime
 
 commands_bp = Blueprint('commands', __name__)
 
@@ -29,11 +30,12 @@ def create_command():
     
     # Create the new command
     new_command = Command(
-        name=data['name'],
-        command=data['command'],
+        command_text=data['command'],
         description=data.get('description'),
-        is_file_edit=data.get('is_file_edit', False),
-        created_by=current_user.user_id
+        is_dangerous=data.get('is_dangerous', False),
+        requires_confirmation=data.get('requires_confirmation', False),
+        created_by=current_user.user_id,
+        list_id=data.get('list_id')
     )
     
     db.session.add(new_command)
@@ -81,13 +83,13 @@ def create_command_list():
     if not data or 'name' not in data:
         return jsonify({'error': 'Command list name is required'}), 400
     
-    # Check if command list already exists
-    if CommandList.query.filter_by(name=data['name']).first():
+    # Check if command list already exists with this name
+    if CommandList.query.filter_by(list_name=data['name']).first():
         return jsonify({'error': 'Command list with this name already exists'}), 400
     
     # Create the new command list
     new_list = CommandList(
-        name=data['name'],
+        list_name=data['name'],
         description=data.get('description'),
         created_by=current_user.user_id
     )
@@ -159,10 +161,11 @@ def add_command_to_list(list_id):
         return jsonify({'error': 'Command not found'}), 404
     
     # Check if command is already in the list
-    if command in command_list.commands:
+    if command.list_id == list_id:
         return jsonify({'error': 'Command is already in this list'}), 400
     
-    command_list.commands.append(command)
+    # Update the command's list_id to associate it with this list
+    command.list_id = list_id
     db.session.commit()
     
     return jsonify({
@@ -243,37 +246,58 @@ def get_profile(profile_id):
 @jwt_required()
 def assign_profile_to_user(profile_id):
     """Assign a profile to a user (Team Lead only)"""
-    current_user_id = get_jwt_identity()
-    current_user = User.query.get(current_user_id)
-    
-    if not current_user or not (current_user.is_admin() or current_user.is_team_lead()):
-        return jsonify({'error': 'Only admins and team leads can assign profiles to users'}), 403
-    
-    profile = Profile.query.get(profile_id)
-    
-    if not profile:
-        return jsonify({'error': 'Profile not found'}), 404
-    
-    data = request.get_json()
-    
-    if not data or 'user_id' not in data:
-        return jsonify({'error': 'User ID is required'}), 400
-    
-    user = User.query.get(data['user_id'])
-    
-    if not user:
-        return jsonify({'error': 'User not found'}), 404
-    
-    # Check if user already has this profile
-    if profile in user.profiles:
-        return jsonify({'error': 'User already has this profile'}), 400
-    
-    user.profiles.append(profile)
-    db.session.commit()
-    
-    return jsonify({
-        'message': 'Profile assigned to user successfully'
-    }), 200
+    try:
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(current_user_id)
+        
+        if not current_user or not (current_user.is_admin() or current_user.is_team_lead()):
+            return jsonify({'error': 'Only admins and team leads can assign profiles to users'}), 403
+        
+        profile = Profile.query.get(profile_id)
+        
+        if not profile:
+            return jsonify({'error': 'Profile not found'}), 404
+        
+        data = request.get_json()
+        
+        if not data or 'user_id' not in data:
+            return jsonify({'error': 'User ID is required'}), 400
+        
+        user_id = data['user_id']
+        
+        user = User.query.get(user_id)
+        
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+        
+        # Check if user already has this profile with is_active=True
+        existing_profile = UserProfile.query.filter_by(
+            user_id=user_id, 
+            profile_id=profile_id,
+            is_active=True
+        ).first()
+        
+        if existing_profile:
+            return jsonify({'error': 'User already has this profile'}), 400
+        
+        # Create new user-profile relationship with tracking info
+        user_profile = UserProfile(
+            user_id=user_id,
+            profile_id=profile_id,
+            assigned_at=datetime.utcnow(),
+            assigned_by=current_user_id,
+            is_active=True
+        )
+        
+        db.session.add(user_profile)
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Profile assigned to user successfully'
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 
 @commands_bp.route('/profiles/<int:profile_id>', methods=['PUT'])
 @jwt_required()
@@ -329,32 +353,43 @@ def update_profile(profile_id):
 @jwt_required()
 def remove_user_from_profile(profile_id, user_id):
     """Remove a user from a profile (Admin and Team Lead only)"""
-    current_user_id = get_jwt_identity()
-    current_user = User.query.get(current_user_id)
-    
-    if not current_user or not (current_user.is_admin() or current_user.is_team_lead()):
-        return jsonify({'error': 'Only admins and team leads can remove users from profiles'}), 403
-    
-    profile = Profile.query.get(profile_id)
-    
-    if not profile:
-        return jsonify({'error': 'Profile not found'}), 404
-    
-    user = User.query.get(user_id)
-    
-    if not user:
-        return jsonify({'error': 'User not found'}), 404
-    
-    # Check if user has this profile
-    if profile not in user.profiles:
-        return jsonify({'error': 'User does not have this profile'}), 400
-    
-    user.profiles.remove(profile)
-    db.session.commit()
-    
-    return jsonify({
-        'message': 'User removed from profile successfully'
-    }), 200
+    try:
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(current_user_id)
+        
+        if not current_user or not (current_user.is_admin() or current_user.is_team_lead()):
+            return jsonify({'error': 'Only admins and team leads can remove users from profiles'}), 403
+        
+        profile = Profile.query.get(profile_id)
+        
+        if not profile:
+            return jsonify({'error': 'Profile not found'}), 404
+        
+        user = User.query.get(user_id)
+        
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+        
+        # Find active user-profile relationship
+        user_profile = UserProfile.query.filter_by(
+            user_id=user_id, 
+            profile_id=profile_id,
+            is_active=True
+        ).first()
+        
+        if not user_profile:
+            return jsonify({'error': 'User does not have this profile'}), 400
+        
+        # Soft delete by setting is_active=False
+        user_profile.is_active = False
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'User removed from profile successfully'
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 
 @commands_bp.route('/profiles/<int:profile_id>/users', methods=['GET'])
 @jwt_required()

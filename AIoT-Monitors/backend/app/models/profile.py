@@ -25,18 +25,28 @@ class Profile(db.Model):
         self.description = description
         self.created_by = created_by
     
+    @property
+    def users(self):
+        """Lấy tất cả người dùng được gán profile này và đang active"""
+        from app.models.user import User, UserProfile
+        user_ids = db.session.query(UserProfile.user_id).filter_by(
+            profile_id=self.profile_id,
+            is_active=True
+        ).all()
+        return User.query.filter(User.user_id.in_([uid[0] for uid in user_ids])).all()
+    
     def to_dict(self):
+        """Convert object to dictionary"""
         return {
             'id': self.profile_id,
             'name': self.profile_name,
             'description': self.description,
             'group_id': self.group_id,
-            'group_name': self.device_group.group_name if self.device_group else None,
             'list_id': self.list_id,
-            'list_name': self.command_list.list_name if self.command_list else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'created_by': self.creator.username if self.creator else None,
-            'is_active': self.is_active
+            'is_active': self.is_active,
+            'user_count': len(self.users) if hasattr(self, 'users') else 0
         }
     
     @classmethod

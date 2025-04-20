@@ -1,11 +1,8 @@
 from app import db
 from datetime import datetime
 
-# CommandList-Command association table
-command_list_commands = db.Table('command_list_commands',
-    db.Column('command_list_id', db.Integer, db.ForeignKey('command_lists.list_id'), primary_key=True),
-    db.Column('command_id', db.Integer, db.ForeignKey('commands.command_id'), primary_key=True)
-)
+# Note: We're removing the association table as it doesn't exist in the DB schema
+# Instead, Command has a direct reference to CommandList via list_id
 
 class CommandList(db.Model):
     __tablename__ = 'command_lists'
@@ -19,7 +16,8 @@ class CommandList(db.Model):
     
     # Relationships
     creator = db.relationship('User', foreign_keys=[created_by])
-    commands = db.relationship('Command', secondary='command_list_commands', backref='command_lists')
+    # Changed from many-to-many to one-to-many
+    commands = db.relationship('Command', backref='command_list', lazy='dynamic')
     
     def __init__(self, list_name, description=None, created_by=None):
         self.list_name = list_name
@@ -31,7 +29,7 @@ class CommandList(db.Model):
             'id': self.list_id,
             'name': self.list_name,
             'description': self.description,
-            'command_count': len(self.commands),
+            'command_count': self.commands.count(), # Changed from len(self.commands) to .count()
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'created_by': self.creator.username if self.creator else None,
             'is_active': self.is_active
@@ -51,6 +49,7 @@ class Command(db.Model):
     
     # Relationships
     creator = db.relationship('User', foreign_keys=[created_by])
+    # Note: the backref to command_list is defined above
     
     def __init__(self, command_text, description=None, is_dangerous=False, 
                  requires_confirmation=False, created_by=None, list_id=None):

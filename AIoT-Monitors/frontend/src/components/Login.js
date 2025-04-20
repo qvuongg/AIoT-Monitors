@@ -21,16 +21,8 @@ const Login = ({ setIsAuthenticated, setUser }) => {
             setIsAuthenticated(true);
             setUser(user);
 
-            // Redirect based on user role
-            if (user.role === 'admin') {
-                navigate('/admin');
-            } else if (user.role === 'team_lead') {
-                navigate('/team-lead');
-            } else if (user.role === 'supervisor') {
-                navigate('/supervisor');
-            } else {
-                navigate('/dashboard');
-            }
+            // Luôn chuyển đến dashboard sau khi đăng nhập
+            navigate('/dashboard');
         } catch (err) {
             console.error('Login error:', err);
             setError(err.response?.data?.error || 'Login failed. Please try again.');
