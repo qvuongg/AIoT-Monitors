@@ -329,10 +329,86 @@ const authService = {
     }
 };
 
+// Service cho Commands
+const commandService = {
+    getAllCommandLists: async () => {
+        try {
+            const response = await axios.get('/api/commands/lists');
+            return response.data.command_lists || [];
+        } catch (error) {
+            console.error('Error fetching command lists:', error);
+            return [];
+        }
+    },
+
+    getCommandListById: async (id) => {
+        try {
+            const response = await axios.get(`/api/commands/lists/${id}`);
+            return response.data;
+        } catch (error) {
+            console.error(`Error fetching command list ${id}:`, error);
+            return null;
+        }
+    },
+
+    createCommandList: async (data) => {
+        try {
+            const response = await axios.post('/api/commands/lists', data);
+            return response.data;
+        } catch (error) {
+            console.error('Error creating command list:', error);
+            throw error;
+        }
+    },
+
+    getListCommands: async (listId) => {
+        try {
+            const response = await axios.get(`/api/commands/lists/${listId}/commands`);
+            return response.data.commands || [];
+        } catch (error) {
+            console.error(`Error fetching commands for list ${listId}:`, error);
+            return [];
+        }
+    },
+
+    createCommand: async (data) => {
+        try {
+            const response = await axios.post('/api/commands', data);
+            return response.data;
+        } catch (error) {
+            console.error('Error creating command:', error);
+            throw error;
+        }
+    },
+
+    addCommandToList: async (listId, commandId) => {
+        try {
+            const response = await axios.post(`/api/commands/lists/${listId}/commands`, {
+                command_id: commandId
+            });
+            return response.data;
+        } catch (error) {
+            console.error(`Error adding command ${commandId} to list ${listId}:`, error);
+            throw error;
+        }
+    },
+
+    getAllowedCommands: async () => {
+        try {
+            const response = await axios.get('/api/commands/allowed');
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching allowed commands:', error);
+            return { commands: [] };
+        }
+    }
+};
+
 // Export các services
 export {
     deviceService,
     sessionService,
     profileService,
-    authService
-}; 
+    authService,
+    commandService
+};

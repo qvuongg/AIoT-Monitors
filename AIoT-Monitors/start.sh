@@ -23,22 +23,18 @@ fi
 # Khởi động Backend
 echo -e "${BLUE}Khởi động Backend API (http://localhost:8000)...${NC}"
 cd backend
-# Cài đặt dependencies nếu cần
-if [ ! -d "venv" ]; then
-    echo -e "${BLUE}Tạo môi trường ảo Python...${NC}"
-    python3 -m venv venv
-fi
 
-# Kích hoạt môi trường ảo
-source venv/bin/activate
+# Kiểm tra và cài đặt python-dotenv trước khi chạy
+echo -e "${BLUE}Kiểm tra và cài đặt các gói phụ thuộc cần thiết...${NC}"
+python3 -m pip install python-dotenv
 
-# Cài đặt dependencies
+# Cài đặt dependencies từ requirements.txt
 echo -e "${BLUE}Cài đặt các gói phụ thuộc backend...${NC}"
-pip install -r requirements.txt
+python3 -m pip install -r requirements.txt
 
 # Chạy backend trong background
 echo -e "${BLUE}Chạy backend...${NC}"
-python start_profiles_api.py &
+python3 start_profiles_api.py &
 BACKEND_PID=$!
 echo -e "${GREEN}Backend đang chạy với PID: $BACKEND_PID${NC}"
 
@@ -74,4 +70,4 @@ function cleanup {
 trap cleanup SIGINT
 
 # Giữ script chạy
-wait 
+wait

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import { commandService } from '../services/api';
 
 function CreateCommandList() {
     const [name, setName] = useState('');
@@ -21,15 +21,10 @@ function CreateCommandList() {
     const fetchCommandLists = async () => {
         try {
             setLoading(true);
-            const token = localStorage.getItem('token');
-            const response = await axios.get('http://localhost:8000/api/commands/lists', {
-                headers: {
-                    Authorization: `Bearer ${token}`
-                }
-            });
-            setCommandLists(response.data.command_lists || []);
-            if (response.data.command_lists && response.data.command_lists.length > 0) {
-                setSelectedListId(response.data.command_lists[0].id);
+            const lists = await commandService.getAllCommandLists();
+            setCommandLists(lists);
+            if (lists.length > 0) {
+                setSelectedListId(lists[0].id);
             }
         } catch (error) {
             console.error('Error fetching command lists:', error);
@@ -41,14 +36,9 @@ function CreateCommandList() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            const token = localStorage.getItem('token');
-            await axios.post('http://localhost:8000/api/commands/lists', {
+            await commandService.createCommandList({
                 name,
                 description
-            }, {
-                headers: {
-                    Authorization: `Bearer ${token}`
-                }
             });
             alert('Danh sách lệnh đã được tạo thành công!');
             setName('');
@@ -63,27 +53,18 @@ function CreateCommandList() {
     const handleCommandSubmit = async (e) => {
         e.preventDefault();
         try {
-            const token = localStorage.getItem('token');
-            const response = await axios.post('http://localhost:8000/api/commands', {
+            const commandData = {
                 name: commandName,
                 command: commandText,
                 description: commandDesc,
                 is_file_edit: isFileEdit
-            }, {
-                headers: {
-                    Authorization: `Bearer ${token}`
-                }
-            });
+            };
+            
+            const response = await commandService.createCommand(commandData);
 
-            if (response.data.command && selectedListId) {
+            if (response.command && selectedListId) {
                 // Add command to selected list
-                await axios.post(`http://localhost:8000/api/commands/lists/${selectedListId}/commands`, {
-                    command_id: response.data.command.id
-                }, {
-                    headers: {
-                        Authorization: `Bearer ${token}`
-                    }
-                });
+                await commandService.addCommandToList(selectedListId, response.command.id);
             }
 
             alert('Tạo command thành công!');
@@ -99,45 +80,48 @@ function CreateCommandList() {
     };
 
     return (
-        <div className="command-management" style={{ padding: '1rem' }}>
-            <h1>Quản lý lệnh</h1>
+        <div className="command-management" style={{ padding: '1rem', maxWidth: '1200px', margin: '0 auto' }}>
+            <h1 style={{ borderBottom: '2px solid #4CAF50', paddingBottom: '0.5rem', marginBottom: '1.5rem' }}>Quản lý lệnh cho Team Lead</h1>
 
             <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
                 <div style={{ flex: '1', minWidth: '300px' }}>
-                    <h2>Tạo danh sách lệnh mới</h2>
-                    <form onSubmit={handleSubmit}>
+                    <h2 style={{ color: '#2E7D32', marginBottom: '1rem' }}>Tạo danh sách lệnh mới</h2>
+                    <form onSubmit={handleSubmit} style={{ backgroundColor: '#f9f9f9', padding: '1.2rem', borderRadius: '8px', border: '1px solid #e0e0e0' }}>
                         <div style={{ marginBottom: '1rem' }}>
-                            <label htmlFor="name" style={{ display: 'block', marginBottom: '0.5rem' }}>Tên danh sách:</label>
+                            <label htmlFor="name" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>Tên danh sách:</label>
                             <input
                                 id="name"
                                 placeholder="Tên danh sách lệnh"
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
-                                style={{ width: '100%', padding: '0.5rem' }}
+                                style={{ width: '100%', padding: '0.7rem', borderRadius: '4px', border: '1px solid #ccc' }}
                                 required
                             />
                         </div>
 
-                        <div style={{ marginBottom: '1rem' }}>
-                            <label htmlFor="description" style={{ display: 'block', marginBottom: '0.5rem' }}>Mô tả:</label>
+                        <div style={{ marginBottom: '1.5rem' }}>
+                            <label htmlFor="description" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>Mô tả:</label>
                             <textarea
                                 id="description"
                                 placeholder="Mô tả về danh sách lệnh"
                                 value={description}
                                 onChange={(e) => setDescription(e.target.value)}
-                                style={{ width: '100%', padding: '0.5rem' }}
+                                style={{ width: '100%', padding: '0.7rem', borderRadius: '4px', border: '1px solid #ccc', minHeight: '100px' }}
                             />
                         </div>
 
                         <button
                             type="submit"
                             style={{
-                                padding: '0.5rem 1rem',
+                                padding: '0.7rem 1.2rem',
                                 backgroundColor: '#4CAF50',
                                 color: 'white',
                                 border: 'none',
                                 borderRadius: '4px',
-                                cursor: 'pointer'
+                                cursor: 'pointer',
+                                fontWeight: 'bold',
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                                transition: 'all 0.2s ease'
                             }}
                         >
                             Tạo danh sách lệnh
@@ -146,38 +130,53 @@ function CreateCommandList() {
                 </div>
 
                 <div style={{ flex: '1', minWidth: '300px' }}>
-                    <h2>Danh sách lệnh hiện có</h2>
+                    <h2 style={{ color: '#2E7D32', marginBottom: '1rem' }}>Danh sách lệnh hiện có</h2>
                     {loading ? (
-                        <p>Đang tải...</p>
+                        <div style={{ textAlign: 'center', padding: '2rem' }}>
+                            <p>Đang tải dữ liệu...</p>
+                        </div>
                     ) : commandLists.length > 0 ? (
-                        <ul style={{ listStyle: 'none', padding: 0 }}>
-                            {commandLists.map(list => (
-                                <li
-                                    key={list.id}
-                                    style={{
-                                        marginBottom: '0.5rem',
-                                        padding: '0.5rem',
-                                        border: '1px solid #ddd',
-                                        borderRadius: '4px'
-                                    }}
-                                >
-                                    <h3 style={{ margin: '0 0 0.5rem 0' }}>{list.name}</h3>
-                                    {list.description && <p style={{ margin: '0 0 0.5rem 0' }}>{list.description}</p>}
-                                    <p style={{ margin: 0, fontSize: '0.8rem', color: '#666' }}>
-                                        Tạo bởi: {list.created_by || 'N/A'} |
-                                        Ngày tạo: {new Date(list.created_at).toLocaleDateString('vi-VN')}
-                                    </p>
-                                </li>
-                            ))}
-                        </ul>
+                        <div style={{ maxHeight: '500px', overflowY: 'auto', padding: '0.5rem', border: '1px solid #e0e0e0', borderRadius: '8px' }}>
+                            <ul style={{ listStyle: 'none', padding: 0 }}>
+                                {commandLists.map(list => (
+                                    <li
+                                        key={list.id}
+                                        style={{
+                                            marginBottom: '0.8rem',
+                                            padding: '0.8rem',
+                                            border: '1px solid #ddd',
+                                            borderRadius: '8px',
+                                            boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                                            backgroundColor: '#f9f9f9',
+                                            transition: 'all 0.2s ease'
+                                        }}
+                                        onClick={() => setSelectedListId(list.id)}
+                                    >
+                                        <h3 style={{ margin: '0 0 0.5rem 0', color: '#1976D2' }}>{list.name}</h3>
+                                        {list.description && <p style={{ margin: '0 0 0.5rem 0' }}>{list.description}</p>}
+                                        <p style={{ margin: 0, fontSize: '0.8rem', color: '#666' }}>
+                                            Tạo bởi: {list.created_by || 'N/A'} |
+                                            Ngày tạo: {new Date(list.created_at).toLocaleDateString('vi-VN')}
+                                        </p>
+                                        {selectedListId === list.id && (
+                                            <div style={{ marginTop: '0.5rem', padding: '0.3rem', backgroundColor: '#e3f2fd', borderRadius: '4px', fontSize: '0.8rem', textAlign: 'center' }}>
+                                                Đã chọn
+                                            </div>
+                                        )}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
                     ) : (
-                        <p>Chưa có danh sách lệnh nào.</p>
+                        <div style={{ padding: '2rem', textAlign: 'center', border: '1px dashed #ccc', borderRadius: '8px' }}>
+                            <p>Chưa có danh sách lệnh nào. Hãy tạo danh sách lệnh mới.</p>
+                        </div>
                     )}
                 </div>
             </div>
 
-            {/* <div style={{ marginTop: '2rem' }}>
-                <h2>Tạo Command mới</h2>
+            <div style={{ marginTop: '2rem', backgroundColor: '#f5f5f5', padding: '1.5rem', borderRadius: '8px', border: '1px solid #e0e0e0' }}>
+                <h2 style={{ color: '#2E7D32', marginBottom: '1rem' }}>Tạo Command mới</h2>
                 <form onSubmit={handleCommandSubmit}>
                     {commandLists.length > 0 && (
                         <div style={{ marginBottom: '1rem' }}>
@@ -256,9 +255,9 @@ function CreateCommandList() {
                         Tạo Command
                     </button>
                 </form>
-            </div> */}
+            </div>
         </div>
     );
 }
 
-export default CreateCommandList; 
+export default CreateCommandList;

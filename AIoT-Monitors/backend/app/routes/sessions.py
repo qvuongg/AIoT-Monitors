@@ -91,21 +91,32 @@ def execute_command(session_id):
     raw_command = data['command']
     command_id = data.get('command_id')
     
-    # If command_id is provided, check if it's in user's permitted commands
-    if command_id:
+    # Nếu người dùng là operator, họ chỉ được phép thực thi lệnh từ command list
+    # được gán thông qua profile
+    if current_user.is_operator():
+        # Nếu không cung cấp command_id, operator không được phép thực thi lệnh tùy ý
+        if not command_id:
+            return jsonify({'error': 'Operators must use commands from their assigned profiles'}), 403
+            
+        # Kiểm tra lệnh có tồn tại không
         command = Command.query.get(command_id)
         if not command:
             return jsonify({'error': 'Command not found'}), 404
-        
-        # Check if the command is in the user's profiles
+            
+        # Kiểm tra xem lệnh có nằm trong profile được gán cho operator không
         command_allowed = False
         for profile in current_user.profiles:
-            if command in profile.command_list.commands:
+            if profile.command_list and command in profile.command_list.commands:
                 command_allowed = True
                 break
-        
-        if not command_allowed and not (current_user.is_admin() or current_user.is_supervisor()):
+                
+        if not command_allowed:
             return jsonify({'error': 'You do not have permission to use this command'}), 403
+    # Admin và Supervisor có thể thực thi bất kỳ lệnh nào
+    elif command_id:
+        command = Command.query.get(command_id)
+        if not command:
+            return jsonify({'error': 'Command not found'}), 404
     
     # Execute the command via SSH
     try:
@@ -360,4 +371,4 @@ def get_session_commands(session_id):
     
     return jsonify({
         'commands': [command.to_dict() for command in session.command_logs]
-    }), 200 
+    }), 200

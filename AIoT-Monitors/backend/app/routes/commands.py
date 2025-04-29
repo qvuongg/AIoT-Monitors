@@ -402,4 +402,35 @@ def get_profile_users(profile_id):
     
     return jsonify({
         'users': [user.to_dict() for user in profile.users]
-    }), 200 
+    }), 200
+
+@commands_bp.route('/allowed', methods=['GET'])
+@jwt_required()
+def get_allowed_commands():
+    """Lấy danh sách các lệnh được phép cho người dùng hiện tại dựa trên profile được gán"""
+    current_user_id = get_jwt_identity()
+    current_user = User.query.get(current_user_id)
+    
+    if not current_user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    # Admin và Supervisor có thể sử dụng tất cả các lệnh
+    if current_user.is_admin() or current_user.is_supervisor() or current_user.is_team_lead():
+        commands = Command.query.all()
+        return jsonify({
+            'commands': [command.to_dict() for command in commands]
+        }), 200
+    
+    # Đối với Operator, chỉ trả về các lệnh từ các profile được gán
+    allowed_commands = set()
+    
+    # Lấy tất cả profile đang hoạt động của người dùng
+    for profile in current_user.profiles:
+        if profile.is_active and profile.command_list:
+            # Thêm tất cả lệnh từ command_list của profile vào tập hợp allowed_commands
+            for command in profile.command_list.commands:
+                allowed_commands.add(command)
+    
+    return jsonify({
+        'commands': [command.to_dict() for command in allowed_commands]
+    }), 200

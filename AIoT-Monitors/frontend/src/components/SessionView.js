@@ -1,8 +1,27 @@
 import React, { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
 import { useParams, useNavigate } from 'react-router-dom';
+import { sessionService, commandService } from '../services/api';
+import axios from 'axios';
 
 const SessionView = ({ user }) => {
+    const styles = {
+        allowedCommands: {
+            marginTop: '20px',
+            padding: '10px'
+        },
+        commandList: {
+            listStyle: 'none',
+            padding: 0,
+            margin: 0
+        },
+        commandItem: {
+            padding: '8px 12px',
+            margin: '4px 0',
+            backgroundColor: '#f5f5f5',
+            borderRadius: '4px',
+            fontSize: '14px'
+        }
+    };
     const { sessionId } = useParams();
     const navigate = useNavigate();
     const [session, setSession] = useState(null);
@@ -25,26 +44,28 @@ const SessionView = ({ user }) => {
                 setError('');
 
                 // Get session details
-                const sessionResponse = await axios.get(`/api/sessions/${sessionId}`);
-                setSession(sessionResponse.data);
+                const sessionResponse = await sessionService.getSessionById(sessionId);
+                setSession(sessionResponse);
 
                 // Get device details
-                const deviceResponse = await axios.get(`/api/devices/${sessionResponse.data.device_id}`);
+                const deviceResponse = await axios.get(`/api/devices/${sessionResponse.device_id}`);
                 setDevice(deviceResponse.data);
 
                 // Get command history
-                const commandsResponse = await axios.get(`/api/sessions/${sessionId}/commands`);
-                setCommands(commandsResponse.data.commands);
+                const commandsResponse = await sessionService.getSessionCommands(sessionId);
+                setCommands(commandsResponse);
 
                 // Get allowed commands for this user
-                if (user && user.role !== 'admin' && user.role !== 'supervisor') {
-                    const allowedCommandsResponse = await axios.get('/api/commands/allowed');
-                    setAllowedCommands(allowedCommandsResponse.data.commands);
+                const allowedCommandsResponse = await commandService.getAllowedCommands();
+                if (allowedCommandsResponse && allowedCommandsResponse.commands) {
+                    setAllowedCommands(allowedCommandsResponse.commands);
+                } else {
+                    setAllowedCommands([]);
                 }
 
                 // Set command outputs from history
                 setCommandOutput(
-                    commandsResponse.data.commands.map(cmd => ({
+                    commandsResponse.commands.map(cmd => ({
                         command: cmd.raw_command,
                         output: cmd.output,
                         time: new Date(cmd.executed_at).toLocaleString()
@@ -191,6 +212,14 @@ const SessionView = ({ user }) => {
                     <p><strong>Type:</strong> {device.device_type}</p>
                     <p><strong>IP:</strong> {device.ip_address}</p>
                 </div>
+                <div className="allowed-commands" style={styles.allowedCommands}>
+                    <h3>Allowed Commands</h3>
+                    <ul style={styles.commandList}>
+                        {allowedCommands.map((cmd, index) => (
+                            <li key={index} style={styles.commandItem}>{cmd.command_text}</li>
+                        ))}
+                    </ul>
+                </div>
                 <div className="session-actions">
                     <button
                         className={`mode-btn ${mode === 'command' ? 'active' : ''}`}
@@ -287,4 +316,4 @@ const SessionView = ({ user }) => {
     );
 };
 
-export default SessionView; 
+export default SessionView;
