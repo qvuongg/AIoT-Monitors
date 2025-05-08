@@ -28,6 +28,13 @@ const Header = ({ user, setIsAuthenticated, setUser }) => {
                             </NavLink>
                         </li>
 
+                        {/* Sessions link for all roles */}
+                        <li className="nav-item">
+                            <NavLink to="/sessions" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
+                                Sessions
+                            </NavLink>
+                        </li>
+
                         {/* Admin: Dashboard, Quản lý tài khoản */}
                         {user && user.role === 'admin' && (
                             <>

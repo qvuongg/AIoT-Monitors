@@ -6,6 +6,7 @@ import './App.css';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import SessionView from './components/SessionView';
+import SessionsList from './components/SessionsList';
 import SupervisorDashboard from './components/SupervisorDashboard';
 import ProfileDashboard from './components/ProfileDashboard';
 import CreateCommandList from './components/CreateCommandList';
@@ -13,6 +14,12 @@ import ProfileManagement from './components/ProfileManagement';
 import AccountManagement from './components/AccountManagement';
 import ChangePassword from './components/ChangePassword';
 import Header from './components/Header';
+import OperatorDashboard from './components/OperatorDashboard';
+import AdminDashboard from './components/AdminDashboard';
+import TeamLeadDashboard from './components/TeamLeadDashboard';
+
+// Import styles
+import './styles/OperatorDashboard.css';
 
 // Import services
 import { authService } from './services/api';
@@ -83,6 +90,12 @@ function App() {
               <ProtectedRoute>
                 {user && user.role === 'supervisor' ? (
                   <SupervisorDashboard user={user} />
+                ) : user && user.role === 'operator' ? (
+                  <OperatorDashboard user={user} />
+                ) : user && user.role === 'admin' ? (
+                  <AdminDashboard user={user} />
+                ) : user && user.role === 'team_lead' ? (
+                  <TeamLeadDashboard user={user} />
                 ) : (
                   <Dashboard user={user} />
                 )}
@@ -95,6 +108,15 @@ function App() {
             element={
               <ProtectedRoute>
                 <SessionView user={user} />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/sessions"
+            element={
+              <ProtectedRoute>
+                <SessionsList user={user} />
               </ProtectedRoute>
             }
           />

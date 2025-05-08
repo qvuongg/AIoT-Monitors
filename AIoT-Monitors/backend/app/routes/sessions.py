@@ -86,37 +86,35 @@ def execute_command(session_id):
         return jsonify({'error': 'Command is required'}), 400
     
     device = Device.query.get(session.device_id)
+    raw_command = data['command'].strip()
+    command_id = data.get('command_id')  # Optional now
     
-    # Check if the command is allowed for the user
-    raw_command = data['command']
-    command_id = data.get('command_id')
-    
-    # Nếu người dùng là operator, họ chỉ được phép thực thi lệnh từ command list
-    # được gán thông qua profile
+    # Check permission based on user role
     if current_user.is_operator():
-        # Nếu không cung cấp command_id, operator không được phép thực thi lệnh tùy ý
-        if not command_id:
-            return jsonify({'error': 'Operators must use commands from their assigned profiles'}), 403
-            
-        # Kiểm tra lệnh có tồn tại không
-        command = Command.query.get(command_id)
-        if not command:
-            return jsonify({'error': 'Command not found'}), 404
-            
-        # Kiểm tra xem lệnh có nằm trong profile được gán cho operator không
+        # For operators, validate the command against their assigned profiles
         command_allowed = False
+        matching_command = None
+        
+        # Loop through the user's profiles to find the command
         for profile in current_user.profiles:
-            if profile.command_list and command in profile.command_list.commands:
-                command_allowed = True
+            if not profile.command_list:
+                continue
+                
+            # Check if any command in the profile's command list matches the raw command
+            for cmd in profile.command_list.commands:
+                if cmd.command.strip() == raw_command:
+                    command_allowed = True
+                    matching_command = cmd
+                    break
+                    
+            if command_allowed:
                 break
                 
         if not command_allowed:
-            return jsonify({'error': 'You do not have permission to use this command'}), 403
-    # Admin và Supervisor có thể thực thi bất kỳ lệnh nào
-    elif command_id:
-        command = Command.query.get(command_id)
-        if not command:
-            return jsonify({'error': 'Command not found'}), 404
+            return jsonify({
+                'error': 'You do not have permission to use this command',
+                'message': 'This command is not in your allowed commands list'
+            }), 403
     
     # Execute the command via SSH
     try:
@@ -154,15 +152,16 @@ def execute_command(session_id):
         
         return jsonify({
             'message': 'Command executed successfully',
-            'command_log': command_log.to_dict()
+            'command_log': command_log.to_dict(),
+            'success': True
         }), 200
         
     except paramiko.AuthenticationException:
-        return jsonify({'error': 'Authentication failed'}), 401
+        return jsonify({'error': 'Authentication failed', 'success': False}), 401
     except paramiko.SSHException as e:
-        return jsonify({'error': f'SSH error: {str(e)}'}), 500
+        return jsonify({'error': f'SSH error: {str(e)}', 'success': False}), 500
     except Exception as e:
-        return jsonify({'error': f'Error: {str(e)}'}), 500
+        return jsonify({'error': f'Error: {str(e)}', 'success': False}), 500
 
 @sessions_bp.route('/<int:session_id>/edit-file', methods=['POST'])
 @jwt_required()
@@ -278,61 +277,101 @@ def end_session(session_id):
 @sessions_bp.route('', methods=['GET'])
 @jwt_required()
 def get_sessions():
-    """Get all sessions or filter by active_only"""
-    try:
-        current_user_id = get_jwt_identity()
-        current_user = User.query.get(current_user_id)
+    """Get all sessions or active sessions"""
+    current_user_id = get_jwt_identity()
+    current_user = User.query.get(current_user_id)
+    
+    if not current_user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    active_only = request.args.get('active_only', 'false').lower() == 'true'
+    detailed = request.args.get('detailed', 'false').lower() == 'true'
+    limit = request.args.get('limit', 20, type=int)
+    offset = request.args.get('offset', 0, type=int)
+    
+    # Build query based on user role
+    query = Session.query
+    
+    if active_only:
+        query = query.filter(Session.status == SessionStatus.ACTIVE)
+    
+    # Operators can only see their own sessions
+    if current_user.is_operator():
+        query = query.filter(Session.user_id == current_user.user_id)
+    
+    # Order by session id descending (newest first)
+    query = query.order_by(Session.session_id.desc())
+    
+    # Apply pagination
+    total_count = query.count()
+    sessions = query.offset(offset).limit(limit).all()
+    
+    session_list = []
+    for session in sessions:
+        session_data = session.to_dict()
         
-        if not current_user:
-            return jsonify({'error': 'User not found', 'sessions': []}), 404
-        
-        # Check for filter parameters
-        active_only = request.args.get('active_only', 'false').lower() == 'true'
-        
-        # Base query
-        query = Session.query
-        
-        # Apply filters
-        if active_only:
-            query = query.filter(Session.status == SessionStatus.ACTIVE)
-        
-        # Filter based on user role
-        if not (current_user.is_admin() or current_user.is_supervisor()):
-            # Regular operators can only see their own sessions
-            query = query.filter(Session.user_id == current_user.user_id)
-        
-        # Get sessions
-        sessions = query.all()
-        
-        # Format sessions for response
-        formatted_sessions = []
-        for session in sessions:
+        # Include extra details if requested
+        if detailed:
+            # Get device details
             try:
-                session_data = session.to_dict()
-                formatted_sessions.append(session_data)
+                device = Device.query.get(session.device_id)
+                if device:
+                    session_data['device'] = {
+                        'id': device.device_id,
+                        'name': device.device_name,
+                        'ip_address': device.ip_address,
+                        'device_type': device.device_type,
+                        'status': device.status
+                    }
             except Exception as e:
-                print(f"Error processing session {session.session_id}: {str(e)}")
-                # Include minimal session data
-                formatted_sessions.append({
-                    'id': session.session_id,
-                    'device_id': session.device_id,
-                    'status': session.status
-                })
+                print(f"Error getting device details: {str(e)}")
+            
+            # Get last command if available
+            try:
+                last_command = session.command_logs.order_by(CommandLog.executed_at.desc()).first()
+                if last_command:
+                    session_data['last_command'] = {
+                        'command': last_command.command_text,
+                        'executed_at': last_command.executed_at.isoformat() if last_command.executed_at else None,
+                        'status': last_command.status
+                    }
+            except Exception as e:
+                print(f"Error getting last command: {str(e)}")
         
-        return jsonify({
-            'sessions': formatted_sessions
-        }), 200
-    except Exception as e:
-        print(f"Error in get_sessions: {str(e)}")
-        return jsonify({
-            'error': f'Failed to retrieve sessions: {str(e)}',
-            'sessions': []
-        }), 500
+        session_list.append(session_data)
+    
+    # For operators, include their allowed commands
+    allowed_commands = []
+    if current_user.is_operator():
+        try:
+            for profile in current_user.profiles:
+                if profile.command_list:
+                    for cmd in profile.command_list.commands:
+                        allowed_commands.append({
+                            'id': cmd.command_id,
+                            'command': cmd.command,
+                            'description': cmd.description,
+                            'profile_id': profile.profile_id,
+                            'profile_name': profile.profile_name
+                        })
+        except Exception as e:
+            print(f"Error getting allowed commands: {str(e)}")
+    
+    return jsonify({
+        'sessions': session_list,
+        'pagination': {
+            'total': total_count,
+            'offset': offset,
+            'limit': limit,
+            'has_more': offset + limit < total_count
+        },
+        'allowed_commands': allowed_commands if current_user.is_operator() else []
+    }), 200
 
 @sessions_bp.route('/<int:session_id>', methods=['GET'])
 @jwt_required()
 def get_session(session_id):
-    """Get session by ID"""
+    """Get details of a specific session"""
     current_user_id = get_jwt_identity()
     current_user = User.query.get(current_user_id)
     
@@ -345,10 +384,88 @@ def get_session(session_id):
         return jsonify({'error': 'Session not found'}), 404
     
     # Check if the user has permission to view this session
-    if session.user_id != current_user.user_id and not (current_user.is_admin() or current_user.is_supervisor()):
+    # Operators can only view their own sessions
+    if current_user.is_operator() and session.user_id != current_user.user_id:
         return jsonify({'error': 'You do not have permission to view this session'}), 403
     
-    return jsonify(session.to_dict()), 200
+    session_data = session.to_dict()
+    
+    # Add device details
+    try:
+        device = Device.query.get(session.device_id)
+        if device:
+            session_data['device'] = {
+                'id': device.device_id,
+                'name': device.device_name,
+                'ip_address': device.ip_address,
+                'device_type': device.device_type,
+                'status': device.status,
+                'ssh_port': device.ssh_port,
+                'username': device.username,
+                'location': device.location,
+                'group_id': device.group_id
+            }
+            
+            # Add device group info if available
+            if device.group_id:
+                from app.models.device import DeviceGroup
+                group = DeviceGroup.query.get(device.group_id)
+                if group:
+                    session_data['device']['group'] = {
+                        'id': group.group_id,
+                        'name': group.group_name,
+                        'description': group.description
+                    }
+    except Exception as e:
+        print(f"Error getting device details: {str(e)}")
+    
+    # Get command history for this session
+    try:
+        commands = CommandLog.query.filter_by(session_id=session_id).order_by(CommandLog.executed_at.desc()).all()
+        session_data['commands'] = [cmd.to_dict() for cmd in commands]
+    except Exception as e:
+        print(f"Error getting command history: {str(e)}")
+        session_data['commands'] = []
+    
+    # For operators, include their allowed commands
+    allowed_commands = []
+    if current_user.is_operator():
+        try:
+            for profile in current_user.profiles:
+                if profile.command_list:
+                    for cmd in profile.command_list.commands:
+                        allowed_commands.append({
+                            'id': cmd.command_id,
+                            'command': cmd.command,
+                            'description': cmd.description,
+                            'profile_id': profile.profile_id,
+                            'profile_name': profile.profile_name
+                        })
+        except Exception as e:
+            print(f"Error getting allowed commands: {str(e)}")
+    
+    # Also include the profile that grants access to this device
+    if current_user.is_operator() and device:
+        try:
+            device_profiles = []
+            for profile in current_user.profiles:
+                if device.group_id == profile.group_id:
+                    device_profiles.append({
+                        'id': profile.profile_id,
+                        'name': profile.profile_name,
+                        'description': profile.description,
+                        'group_id': profile.group_id,
+                        'list_id': profile.list_id
+                    })
+            if device_profiles:
+                session_data['device_profiles'] = device_profiles
+        except Exception as e:
+            print(f"Error getting device profiles: {str(e)}")
+    
+    return jsonify({
+        'session': session_data,
+        'allowed_commands': allowed_commands if current_user.is_operator() else []
+    }), 200
 
 @sessions_bp.route('/<int:session_id>/commands', methods=['GET'])
 @jwt_required()

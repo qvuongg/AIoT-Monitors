@@ -30,7 +30,7 @@ function ProfileManagement() {
 
             // Filter users to only show operators
             const operatorUsers = usersResponse.data.filter(user =>
-                user.role === 'operator' || user.role === 'supervisor'
+                user.role === 'operator'
             );
 
             setProfiles(profilesResponse.data.profiles || []);

@@ -434,3 +434,99 @@ def get_allowed_commands():
     return jsonify({
         'commands': [command.to_dict() for command in allowed_commands]
     }), 200
+
+@commands_bp.route('/profiles/users/<int:user_id>', methods=['GET'])
+@jwt_required()
+def get_user_profiles(user_id):
+    """Get all profiles assigned to a user"""
+    try:
+        # Get the current user for permission check
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(current_user_id)
+        
+        # Check permissions (users can view their own profiles, admins and team leads can view any)
+        if current_user.user_id != user_id and not (current_user.is_admin() or current_user.is_team_lead()):
+            return jsonify({'error': 'Không có quyền truy cập'}), 403
+        
+        # Get the user to check if it exists and if it's an operator
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'error': 'Không tìm thấy người dùng'}), 404
+        
+        # Only operators can have profiles (for non-operators, return empty list)
+        if user.role != 'operator':
+            return jsonify({
+                'success': True,
+                'count': 0,
+                'profiles': [],
+                'active_sessions': []
+            }), 200
+        
+        # Get active user profile assignments for this user
+        user_profiles = UserProfile.query.filter_by(user_id=user_id, is_active=True).all()
+        profile_ids = [up.profile_id for up in user_profiles]
+        profiles = Profile.query.filter(Profile.profile_id.in_(profile_ids)).all() if profile_ids else []
+        
+        # Get active sessions for this user
+        from app.models.session import Session
+        from app.models.device import Device
+        
+        active_sessions = []
+        sessions = Session.query.filter_by(user_id=user_id, status='active').all()
+        
+        for session in sessions:
+            device = Device.query.get(session.device_id) if session.device_id else None
+            active_sessions.append({
+                'id': session.session_id,
+                'device_name': device.device_name if device else 'Unknown',
+                'ip_address': device.ip_address if device else 'Unknown',
+                'start_time': session.start_time.isoformat() if session.start_time else None,
+                'status': session.status
+            })
+        
+        # Get additional info about device groups and command lists
+        profiles_data = []
+        for profile in profiles:
+            # Get device group info
+            device_group = DeviceGroup.query.get(profile.group_id)
+            # Get command list info  
+            command_list = CommandList.query.get(profile.list_id)
+            
+            # Get devices in this group
+            devices = []
+            if device_group:
+                from app.models.device import Device
+                group_devices = Device.query.filter_by(group_id=profile.group_id, is_active=True).limit(5).all()
+                
+                for device in group_devices:
+                    devices.append({
+                        'id': device.device_id,
+                        'name': device.device_name,
+                        'ip_address': device.ip_address,
+                        'status': device.status
+                    })
+            
+            profile_data = {
+                'id': profile.profile_id,
+                'name': profile.profile_name,
+                'description': profile.description,
+                'group_id': profile.group_id,
+                'group_name': device_group.group_name if device_group else None,
+                'list_id': profile.list_id,
+                'list_name': command_list.list_name if command_list else None,
+                'created_at': profile.created_at.isoformat() if profile.created_at else None,
+                'created_by': profile.created_by,
+                'is_active': profile.is_active,
+                'devices': devices
+            }
+            profiles_data.append(profile_data)
+        
+        return jsonify({
+            'success': True,
+            'count': len(profiles_data),
+            'profiles': profiles_data,
+            'active_sessions': active_sessions
+        }), 200
+    except Exception as e:
+        print(f"Error in get_user_profiles: {str(e)}")
+        return jsonify({'error': str(e)}), 500

@@ -51,10 +51,24 @@ axios.interceptors.response.use(
 
 // Service cho Devices
 const deviceService = {
+    // Helper function to normalize device data
+    normalizeDevice: (device) => {
+        if (!device) return null;
+
+        return {
+            ...device,
+            // Make sure both name and device_name are available
+            name: device.name || device.device_name,
+            device_name: device.device_name || device.name
+        };
+    },
+
     getAllDevices: async () => {
         try {
             const response = await axios.get('/api/devices');
-            return response.data.devices || [];
+            const devices = response.data.devices || [];
+            // Normalize each device
+            return devices.map(device => deviceService.normalizeDevice(device));
         } catch (error) {
             console.error('Error fetching devices:', error);
             return [];
@@ -64,7 +78,7 @@ const deviceService = {
     getDeviceById: async (id) => {
         try {
             const response = await axios.get(`/api/devices/${id}`);
-            return response.data;
+            return deviceService.normalizeDevice(response.data);
         } catch (error) {
             console.error(`Error fetching device ${id}:`, error);
             return null;
@@ -77,6 +91,18 @@ const deviceService = {
             return response.data.device_groups || [];
         } catch (error) {
             console.error('Error fetching device groups:', error);
+            return [];
+        }
+    },
+
+    getGroupDevices: async (groupId) => {
+        try {
+            const response = await axios.get(`/api/devices/groups/${groupId}/devices`);
+            const devices = response.data.devices || [];
+            // Normalize each device
+            return devices.map(device => deviceService.normalizeDevice(device));
+        } catch (error) {
+            console.error(`Error fetching devices for group ${groupId}:`, error);
             return [];
         }
     },
@@ -197,20 +223,76 @@ const profileService = {
     getProfileById: async (id) => {
         try {
             const response = await axios.get(`/api/profiles/${id}`);
-            return response.data.profile;
+            return response.data;
         } catch (error) {
             console.error(`Error fetching profile ${id}:`, error);
             return null;
         }
     },
 
+    getUserProfiles: async (userId) => {
+        try {
+            const response = await axios.get(`/api/commands/profiles/users/${userId}`);
+            return response.data.profiles || [];
+        } catch (error) {
+            console.error(`Error fetching profiles for user ${userId}:`, error);
+            return [];
+        }
+    },
+
     getProfileUsers: async (profileId) => {
         try {
-            const response = await axios.get(`/api/profiles/${profileId}/users`);
+            const response = await axios.get(`/api/commands/profiles/${profileId}/users`);
             return response.data.users || [];
         } catch (error) {
             console.error(`Error fetching users for profile ${profileId}:`, error);
             return [];
+        }
+    },
+
+    getCurrentUserProfiles: async () => {
+        try {
+            const currentUser = authService.getCurrentUser();
+            if (currentUser && currentUser.id) {
+                return profileService.getUserProfiles(currentUser.id);
+            }
+            return [];
+        } catch (error) {
+            console.error('Error fetching current user profiles:', error);
+            return [];
+        }
+    },
+
+    getProfileDetails: async (profileId) => {
+        try {
+            const response = await axios.get(`/api/profiles/${profileId}/details`);
+            return response.data;
+        } catch (error) {
+            console.error(`Error fetching profile details for ${profileId}:`, error);
+            return null;
+        }
+    },
+
+    assignProfileToUser: async (userId, profileId) => {
+        try {
+            const response = await axios.post('/api/user-profiles', {
+                user_id: userId,
+                profile_id: profileId
+            });
+            return response.data;
+        } catch (error) {
+            console.error(`Error assigning profile ${profileId} to user ${userId}:`, error);
+            throw error;
+        }
+    },
+
+    removeProfileFromUser: async (userId, profileId) => {
+        try {
+            const response = await axios.delete(`/api/user-profiles/${userId}/${profileId}`);
+            return response.data;
+        } catch (error) {
+            console.error(`Error removing profile ${profileId} from user ${userId}:`, error);
+            throw error;
         }
     }
 };
@@ -324,6 +406,20 @@ const authService = {
             return response.data;
         } catch (error) {
             console.error('Error resetting password:', error);
+            throw error;
+        }
+    },
+
+    // Reset mật khẩu Admin về mặc định "123456"
+    resetAdminPassword: async (username) => {
+        try {
+            const response = await axios.post('/api/auth/reset-admin-password', {
+                username: username,
+                default_password: '123456'
+            });
+            return response.data;
+        } catch (error) {
+            console.error('Error resetting admin password:', error);
             throw error;
         }
     }

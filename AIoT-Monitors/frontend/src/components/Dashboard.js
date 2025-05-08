@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { deviceService, sessionService } from '../services/api';
+import { deviceService, sessionService, profileService } from '../services/api';
 
 const Dashboard = ({ user }) => {
     const [devices, setDevices] = useState([]);
     const [unassignedDevices, setUnassignedDevices] = useState([]);
     const [deviceGroups, setDeviceGroups] = useState([]);
     const [sessions, setSessions] = useState([]);
+    const [userProfiles, setUserProfiles] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [selectedGroup, setSelectedGroup] = useState('');
@@ -35,6 +36,14 @@ const Dashboard = ({ user }) => {
                 // Get active sessions
                 const fetchedSessions = await sessionService.getActiveSessions();
                 setSessions(fetchedSessions);
+
+                // Get user profiles
+                if (user && user.id && user.role === 'operator') {
+                    const fetchedProfiles = await profileService.getUserProfiles(user.id);
+                    setUserProfiles(fetchedProfiles);
+                } else {
+                    setUserProfiles({ profiles: [], active_sessions: [] });
+                }
             } catch (err) {
                 console.error('Dashboard data error:', err);
                 setError('Failed to load dashboard data. Please try again.');
@@ -44,7 +53,7 @@ const Dashboard = ({ user }) => {
         };
 
         fetchData();
-    }, []);
+    }, [user]);
 
     const handleCreateSession = async (deviceId) => {
         try {
@@ -102,6 +111,83 @@ const Dashboard = ({ user }) => {
         }
     };
 
+    // Inline CSS cho dashboard thiết bị
+    const deviceGridStyles = {
+        deviceGrid: {
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
+            gap: '20px',
+            marginTop: '10px'
+        },
+        deviceContainer: {
+            border: '1px solid #ddd',
+            borderRadius: '8px',
+            padding: '15px',
+            backgroundColor: '#f9f9f9'
+        },
+        deviceGroupTitle: {
+            fontSize: '16px',
+            fontWeight: 'bold',
+            marginBottom: '10px',
+            borderBottom: '1px solid #eee',
+            paddingBottom: '8px'
+        },
+        deviceCards: {
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+            gap: '10px'
+        },
+        deviceCard: {
+            padding: '10px',
+            borderRadius: '5px',
+            backgroundColor: '#fff',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+            transition: 'transform 0.2s',
+            cursor: 'pointer',
+            position: 'relative',
+            overflow: 'hidden',
+            border: '1px solid #eee'
+        },
+        deviceCardOnline: {
+            borderLeft: '4px solid #4CAF50'
+        },
+        deviceCardOffline: {
+            borderLeft: '4px solid #F44336'
+        },
+        deviceCardUnknown: {
+            borderLeft: '4px solid #9E9E9E'
+        },
+        deviceName: {
+            fontWeight: 'bold',
+            marginBottom: '5px'
+        },
+        deviceIp: {
+            fontSize: '13px',
+            color: '#666'
+        },
+        deviceStatus: {
+            position: 'absolute',
+            top: '8px',
+            right: '8px',
+            fontSize: '11px',
+            padding: '2px 6px',
+            borderRadius: '10px',
+            fontWeight: 'bold'
+        },
+        statusOnline: {
+            backgroundColor: '#E8F5E9',
+            color: '#4CAF50'
+        },
+        statusOffline: {
+            backgroundColor: '#FFEBEE',
+            color: '#F44336'
+        },
+        statusUnknown: {
+            backgroundColor: '#EEEEEE',
+            color: '#9E9E9E'
+        }
+    };
+
     if (loading) {
         return <div className="loading-container">Loading dashboard...</div>;
     }
@@ -117,25 +203,110 @@ const Dashboard = ({ user }) => {
 
             {error && <div className="error-message">{error}</div>}
 
-            <div className="dashboard-section">
-                <h2>Phiên Đang Hoạt Động</h2>
-                <div className="card">
-                    {sessions.length > 0 ? (
+            {user?.role === 'operator' ? (
+                <div className="dashboard-section">
+                    <h2>Profiles của bạn</h2>
+                    <div className="card">
+                        {userProfiles.profiles && userProfiles.profiles.length > 0 ? (
+                            <div>
+                                <table className="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Tên Profile</th>
+                                            <th>Mô tả</th>
+                                            <th>Nhóm thiết bị</th>
+                                            <th>Danh sách lệnh</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {userProfiles.profiles.map(profile => (
+                                            <tr key={profile.id}>
+                                                <td>{profile.name}</td>
+                                                <td>{profile.description || 'N/A'}</td>
+                                                <td>{profile.group_name || profile.group_id}</td>
+                                                <td>{profile.list_name || profile.list_id}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+
+                                {/* Hiển thị thiết bị cho mỗi profile */}
+                                {userProfiles.profiles.some(profile => profile.devices && profile.devices.length > 0) && (
+                                    <div className="mt-4">
+                                        <h3 className="dashboard-subtitle">Thiết bị trong Profile</h3>
+                                        <div style={deviceGridStyles.deviceGrid}>
+                                            {userProfiles.profiles.map(profile => (
+                                                profile.devices && profile.devices.length > 0 && (
+                                                    <div key={`devices-${profile.id}`} style={deviceGridStyles.deviceContainer}>
+                                                        <div style={deviceGridStyles.deviceGroupTitle}>{profile.group_name}</div>
+                                                        <div style={deviceGridStyles.deviceCards}>
+                                                            {profile.devices.map(device => (
+                                                                <div
+                                                                    key={device.id}
+                                                                    style={{
+                                                                        ...deviceGridStyles.deviceCard,
+                                                                        ...(device.status === 'online'
+                                                                            ? deviceGridStyles.deviceCardOnline
+                                                                            : device.status === 'offline'
+                                                                                ? deviceGridStyles.deviceCardOffline
+                                                                                : deviceGridStyles.deviceCardUnknown)
+                                                                    }}
+                                                                >
+                                                                    <div style={deviceGridStyles.deviceName}>{device.name || device.device_name}</div>
+                                                                    <div style={deviceGridStyles.deviceIp}>{device.ip_address}</div>
+                                                                    <div
+                                                                        style={{
+                                                                            ...deviceGridStyles.deviceStatus,
+                                                                            ...(device.status === 'online'
+                                                                                ? deviceGridStyles.statusOnline
+                                                                                : device.status === 'offline'
+                                                                                    ? deviceGridStyles.statusOffline
+                                                                                    : deviceGridStyles.statusUnknown)
+                                                                        }}
+                                                                    >
+                                                                        {device.status}
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="empty-state">
+                                <p>Bạn chưa được gán profile nào.</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            ) : null}
+
+            {/* Thêm phần hiển thị phiên hoạt động nếu có */}
+            {userProfiles.active_sessions && userProfiles.active_sessions.length > 0 && (
+                <div className="dashboard-section">
+                    <h2>Phiên Đang Hoạt Động</h2>
+                    <div className="card">
                         <table className="data-table">
                             <thead>
                                 <tr>
                                     <th>ID</th>
                                     <th>Thiết bị</th>
+                                    <th>Địa chỉ IP</th>
                                     <th>Bắt đầu</th>
                                     <th>Trạng thái</th>
                                     <th>Thao tác</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {sessions.map(session => (
+                                {userProfiles.active_sessions.map(session => (
                                     <tr key={session.id}>
                                         <td>{session.id}</td>
                                         <td>{session.device_name}</td>
+                                        <td>{session.ip_address}</td>
                                         <td>{new Date(session.start_time).toLocaleString()}</td>
                                         <td>
                                             <span className={`status-badge ${session.status}`}>
@@ -154,13 +325,9 @@ const Dashboard = ({ user }) => {
                                 ))}
                             </tbody>
                         </table>
-                    ) : (
-                        <div className="empty-state">
-                            <p>Không có phiên hoạt động nào.</p>
-                        </div>
-                    )}
+                    </div>
                 </div>
-            </div>
+            )}
 
             <div className="dashboard-section">
                 <h2>Thiết bị Có Sẵn</h2>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { authService } from '../services/api';
+import { authService, profileService } from '../services/api';
 import '../styles/AccountManagement.css';
 
 const AccountManagement = () => {
@@ -7,6 +7,9 @@ const AccountManagement = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
+    const [selectedUser, setSelectedUser] = useState(null);
+    const [userProfiles, setUserProfiles] = useState([]);
+    const [loadingProfiles, setLoadingProfiles] = useState(false);
 
     // Form state cho việc tạo tài khoản mới
     const [newUser, setNewUser] = useState({
@@ -45,6 +48,38 @@ const AccountManagement = () => {
         } finally {
             setLoading(false);
         }
+    };
+
+    const fetchUserProfiles = async (userId) => {
+        try {
+            setLoadingProfiles(true);
+            const profiles = await profileService.getUserProfiles(userId);
+            setUserProfiles(profiles);
+        } catch (err) {
+            console.error('Error fetching user profiles:', err);
+            setUserProfiles({ profiles: [], active_sessions: [] });
+        } finally {
+            setLoadingProfiles(false);
+        }
+    };
+
+    const handleViewUserProfiles = (user) => {
+        setSelectedUser(user);
+
+        // Chỉ operators mới được gán profile
+        if (user.role !== 'operator') {
+            setLoadingProfiles(false);
+            setUserProfiles([]);
+            // Thông báo sẽ được hiển thị trong modal
+            return;
+        }
+
+        fetchUserProfiles(user.id);
+    };
+
+    const closeUserProfilesView = () => {
+        setSelectedUser(null);
+        setUserProfiles([]);
     };
 
     const handleInputChange = (e) => {
@@ -301,58 +336,195 @@ const AccountManagement = () => {
             </div>
 
             {/* Danh sách tài khoản */}
-            <div className="account-list-container">
-                <h2>Danh sách tài khoản</h2>
-
-                {loading && <div className="loading-message">Đang tải dữ liệu...</div>}
-
-                {!loading && users.length === 0 ? (
-                    <div className="empty-state">Không có tài khoản nào.</div>
-                ) : (
-                    <table className="account-table">
+            <div className="users-table-container">
+                <h2>Danh sách người dùng</h2>
+                <div className="table-responsive">
+                    <table className="table table-striped">
                         <thead>
                             <tr>
                                 <th>ID</th>
-                                <th>Tên đăng nhập</th>
+                                <th>Tên người dùng</th>
                                 <th>Email</th>
                                 <th>Vai trò</th>
-                                <th>Số điện thoại</th>
                                 <th>Trạng thái</th>
-                                <th>Ngày tạo</th>
                                 <th>Thao tác</th>
                             </tr>
                         </thead>
                         <tbody>
                             {users.map(user => (
-                                <tr key={user.id} className={!user.is_active ? 'inactive-user' : ''}>
+                                <tr key={user.id}>
                                     <td>{user.id}</td>
                                     <td>{user.username}</td>
                                     <td>{user.email}</td>
-                                    <td>
-                                        <span className={`role-badge ${user.role}`}>{user.role}</span>
-                                    </td>
-                                    <td>{user.phone || '—'}</td>
+                                    <td>{user.role}</td>
                                     <td>
                                         <span className={`status-badge ${user.is_active ? 'active' : 'inactive'}`}>
-                                            {user.is_active ? 'Hoạt động' : 'Vô hiệu'}
+                                            {user.is_active ? 'Hoạt động' : 'Vô hiệu hóa'}
                                         </span>
                                     </td>
-                                    <td>{new Date(user.created_at).toLocaleDateString()}</td>
                                     <td>
                                         <button
-                                            className="btn btn-action"
+                                            className="btn btn-sm btn-outline-primary me-1"
                                             onClick={() => openResetPasswordModal(user)}
-                                            title="Đặt lại mật khẩu"
                                         >
                                             Đổi mật khẩu
+                                        </button>
+                                        <button
+                                            className="btn btn-sm btn-outline-info"
+                                            onClick={() => handleViewUserProfiles(user)}
+                                        >
+                                            Xem profiles
                                         </button>
                                     </td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
-                )}
+                </div>
             </div>
+
+            {/* User Profiles Modal */}
+            {selectedUser && (
+                <div className="modal show-modal" style={{ display: 'block' }}>
+                    <div className="modal-dialog modal-lg">
+                        <div className="modal-content">
+                            <div className="modal-header">
+                                <h5 className="modal-title">Profiles của {selectedUser.username}</h5>
+                                <button
+                                    type="button"
+                                    className="btn-close"
+                                    onClick={closeUserProfilesView}
+                                ></button>
+                            </div>
+                            <div className="modal-body">
+                                {loadingProfiles ? (
+                                    <div className="text-center my-3">
+                                        <div className="spinner-border text-primary" role="status">
+                                            <span className="visually-hidden">Loading...</span>
+                                        </div>
+                                    </div>
+                                ) : selectedUser.role !== 'operator' ? (
+                                    <div className="alert alert-warning">
+                                        Chỉ người dùng có vai trò 'operator' mới được gán profile. Người dùng này có vai trò '{selectedUser.role}'.
+                                    </div>
+                                ) : userProfiles.length === 0 ? (
+                                    <div className="alert alert-info">
+                                        Người dùng này chưa được gán profile nào.
+                                    </div>
+                                ) : (
+                                    <div>
+                                        {/* Phiên hoạt động */}
+                                        {userProfiles.active_sessions && userProfiles.active_sessions.length > 0 && (
+                                            <div className="mb-4">
+                                                <h6 className="border-bottom pb-2 mb-3">Phiên đang hoạt động</h6>
+                                                <div className="table-responsive">
+                                                    <table className="table table-sm table-striped">
+                                                        <thead>
+                                                            <tr>
+                                                                <th>ID</th>
+                                                                <th>Thiết bị</th>
+                                                                <th>Địa chỉ IP</th>
+                                                                <th>Bắt đầu</th>
+                                                                <th>Trạng thái</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {userProfiles.active_sessions.map(session => (
+                                                                <tr key={session.id}>
+                                                                    <td>{session.id}</td>
+                                                                    <td>{session.device_name}</td>
+                                                                    <td>{session.ip_address}</td>
+                                                                    <td>{new Date(session.start_time).toLocaleString()}</td>
+                                                                    <td>
+                                                                        <span className="badge bg-success">{session.status}</span>
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Profiles */}
+                                        <h6 className="border-bottom pb-2 mb-3">Profiles được gán</h6>
+                                        <div className="table-responsive">
+                                            <table className="table table-striped">
+                                                <thead>
+                                                    <tr>
+                                                        <th>ID</th>
+                                                        <th>Tên profile</th>
+                                                        <th>Mô tả</th>
+                                                        <th>Nhóm thiết bị</th>
+                                                        <th>Danh sách lệnh</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {userProfiles.profiles.map(profile => (
+                                                        <tr key={profile.id}>
+                                                            <td>{profile.id}</td>
+                                                            <td>{profile.name}</td>
+                                                            <td>{profile.description || 'N/A'}</td>
+                                                            <td>{profile.group_name || profile.group_id}</td>
+                                                            <td>{profile.list_name || profile.list_id}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+
+                                        {/* Hiển thị thiết bị cho mỗi profile */}
+                                        {userProfiles.profiles.map(profile => (
+                                            profile.devices && profile.devices.length > 0 && (
+                                                <div key={`devices-${profile.id}`} className="mt-4">
+                                                    <h6 className="border-bottom pb-2 mb-3">
+                                                        Thiết bị trong nhóm "{profile.group_name}"
+                                                    </h6>
+                                                    <div className="table-responsive">
+                                                        <table className="table table-sm table-striped">
+                                                            <thead>
+                                                                <tr>
+                                                                    <th>ID</th>
+                                                                    <th>Tên thiết bị</th>
+                                                                    <th>Địa chỉ IP</th>
+                                                                    <th>Trạng thái</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {profile.devices.map(device => (
+                                                                    <tr key={device.id}>
+                                                                        <td>{device.id}</td>
+                                                                        <td>{device.name}</td>
+                                                                        <td>{device.ip_address}</td>
+                                                                        <td>
+                                                                            <span className={`badge ${device.status === 'online' ? 'bg-success' : device.status === 'offline' ? 'bg-danger' : 'bg-secondary'}`}>
+                                                                                {device.status}
+                                                                            </span>
+                                                                        </td>
+                                                                    </tr>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            )
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                            <div className="modal-footer">
+                                <button
+                                    type="button"
+                                    className="btn btn-secondary"
+                                    onClick={closeUserProfilesView}
+                                >
+                                    Đóng
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Modal đặt lại mật khẩu */}
             {showResetModal && (

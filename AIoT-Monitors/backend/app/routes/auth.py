@@ -397,4 +397,35 @@ def create_team_lead():
         'success': True,
         'message': 'Team Lead account created successfully',
         'user': new_user.to_dict()
-    }), 201 
+    }), 201
+
+@auth_bp.route('/reset-admin-password', methods=['POST'])
+def reset_admin_password():
+    """Reset an admin user's password to the default '123456'"""
+    data = request.get_json()
+    
+    if not data or 'username' not in data:
+        return jsonify({'error': 'Missing username'}), 400
+    
+    username = data.get('username')
+    
+    # Check if the username is valid and belongs to an admin
+    user = User.query.filter_by(username=username).first()
+    
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    # Check if user is an admin (username includes 'admin')
+    if 'admin' not in username.lower():
+        return jsonify({'error': 'This feature is only available for admin accounts'}), 403
+    
+    # Set the default password
+    default_password = '123456'
+    user.password_hash = default_password
+    
+    db.session.commit()
+    
+    return jsonify({
+        'success': True,
+        'message': f'Password for {username} has been reset to the default value'
+    }), 200 
