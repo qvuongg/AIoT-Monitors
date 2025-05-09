@@ -321,6 +321,13 @@ def assign_profile_to_user(profile_id):
                 'error': 'User không tồn tại'
             }), 404
             
+        # Kiểm tra user có phải là Operator không
+        if user.role != UserRole.OPERATOR:
+            return jsonify({
+                'success': False,
+                'error': 'Chỉ có thể gán profile cho Operator'
+            }), 400
+            
         # Kiểm tra xem user đã có profile này chưa
         existing_profile = UserProfile.query.filter_by(
             user_id=user_id, 

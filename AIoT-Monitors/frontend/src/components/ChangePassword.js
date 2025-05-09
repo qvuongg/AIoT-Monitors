@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/api';
 import '../styles/ChangePassword.css';
 
 const ChangePassword = () => {
+    const navigate = useNavigate();
     const [passwords, setPasswords] = useState({
         currentPassword: '',
         newPassword: '',
@@ -66,6 +68,13 @@ const ChangePassword = () => {
                 newPassword: '',
                 confirmPassword: ''
             });
+            
+            // Redirect to login page after 2 seconds
+            setTimeout(() => {
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                navigate('/login');
+            }, 2000);
         } catch (err) {
             const errorMessage = err.response?.data?.error || 'Có lỗi xảy ra khi đổi mật khẩu';
             setError(errorMessage);

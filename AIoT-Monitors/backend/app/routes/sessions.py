@@ -5,6 +5,7 @@ from app.models.user import User
 from app.models.device import Device
 from app.models.session import Session, SessionStatus, CommandLog
 from app.models.command import Command
+from app.models.file_edit_log import FileEditLog
 from app.utils.ssh_client import SSHClient
 import paramiko
 import json
@@ -260,13 +261,14 @@ def end_session(session_id):
     
     data = request.get_json()
     status = data.get('status', SessionStatus.COMPLETED) if data else SessionStatus.COMPLETED
+    terminated_by = data.get('terminated_by') if data else None
     
     # Validate status
     if status not in SessionStatus.all_statuses():
         return jsonify({'error': f'Invalid status. Must be one of: {SessionStatus.all_statuses()}'}), 400
     
     # End the session
-    session.end_session(status)
+    session.end_session(status, terminated_by)
     db.session.commit()
     
     return jsonify({
@@ -489,3 +491,29 @@ def get_session_commands(session_id):
     return jsonify({
         'commands': [command.to_dict() for command in session.command_logs]
     }), 200
+
+@sessions_bp.route('/<int:session_id>/file-edits', methods=['GET'])
+@jwt_required()
+def get_session_file_edits(session_id):
+    """Get all file edits in a session"""
+    current_user_id = get_jwt_identity()
+    current_user = User.query.get(current_user_id)
+    
+    if not current_user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    session = Session.query.get(session_id)
+    
+    if not session:
+        return jsonify({'error': 'Session not found'}), 404
+    
+    # Check if the user has permission to view this session
+    if session.user_id != current_user.user_id and not (current_user.is_admin() or current_user.is_supervisor()):
+        return jsonify({'error': 'You do not have permission to view this session'}), 403
+    
+    # Get file edit logs for this session
+    file_edits = FileEditLog.query.filter_by(session_id=session_id).order_by(FileEditLog.edit_started_at.desc()).all()
+    
+    return jsonify({
+        'file_edits': [edit.to_dict() for edit in file_edits]
+    }), 200 

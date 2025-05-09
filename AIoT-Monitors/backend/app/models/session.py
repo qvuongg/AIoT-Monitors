@@ -1,5 +1,5 @@
 from app import db
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 
 class SessionStatus:
     ACTIVE = 'active'
@@ -17,7 +17,7 @@ class Session(db.Model):
     session_id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), nullable=False)
     device_id = db.Column(db.Integer, db.ForeignKey('devices.device_id'), nullable=False)
-    start_time = db.Column(db.DateTime, default=datetime.utcnow)
+    start_time = db.Column(db.DateTime, default=datetime.now(UTC))
     end_time = db.Column(db.DateTime)
     status = db.Column(db.String(20), nullable=False, default=SessionStatus.ACTIVE)
     terminated_by = db.Column(db.Integer, db.ForeignKey('users.user_id'))
@@ -33,11 +33,11 @@ class Session(db.Model):
         self.ip_address = ip_address
         self.user_agent = user_agent
         self.status = SessionStatus.ACTIVE
-        self.start_time = datetime.utcnow()
+        self.start_time = datetime.now(UTC)
     
     def end_session(self, status=SessionStatus.COMPLETED, terminated_by=None):
         self.status = status
-        self.end_time = datetime.utcnow()
+        self.end_time = datetime.now(UTC)
         self.terminated_by = terminated_by
     
     def to_dict(self):
@@ -67,13 +67,15 @@ class Session(db.Model):
                     
             end_time_str = None
             duration_str = None
-            if self.end_time:
-                try:
+            try:
+                if self.status == SessionStatus.ACTIVE:
+                    duration_str = str(datetime.now(UTC) - self.start_time)
+                else:
                     end_time_str = self.end_time.isoformat()
                     duration_str = str(self.end_time - self.start_time)
-                except:
-                    end_time_str = str(self.end_time)
-                    
+            except:
+                if self.end_time:
+                    end_time_str = str(self.end_time)                    
             # Đếm số lượng lệnh nếu có
             command_count = 0
             try:
@@ -113,7 +115,7 @@ class CommandLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'))
     device_id = db.Column(db.Integer, db.ForeignKey('devices.device_id'))
     command_text = db.Column(db.Text, nullable=False)
-    executed_at = db.Column(db.DateTime, default=datetime.utcnow)
+    executed_at = db.Column(db.DateTime, default=datetime.now(UTC))
     status = db.Column(db.String(20))
     output = db.Column(db.Text)
     execution_time = db.Column(db.Integer)
@@ -129,7 +131,7 @@ class CommandLog(db.Model):
         self.status = status
         self.execution_time = execution_time
         self.is_approved = is_approved
-        self.executed_at = datetime.utcnow()
+        self.executed_at = datetime.now(UTC)
     
     def to_dict(self):
         try:
@@ -158,4 +160,70 @@ class CommandLog(db.Model):
                 'id': self.log_id, 
                 'session_id': self.session_id,
                 'command_text': self.command_text
+            }
+
+class FileEditLog(db.Model):
+    __tablename__ = 'file_edit_logs'
+    
+    log_id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.Integer, db.ForeignKey('sessions.session_id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'))
+    device_id = db.Column(db.Integer, db.ForeignKey('devices.device_id'))
+    file_path = db.Column(db.Text, nullable=False)
+    edit_type = db.Column(db.String(20), nullable=False)  # create, modify, delete
+    edit_started_at = db.Column(db.DateTime, default=datetime.now(UTC))
+    edit_finished_at = db.Column(db.DateTime)
+    content_before = db.Column(db.Text)
+    content_after = db.Column(db.Text)
+    diff = db.Column(db.Text)
+    
+    def __init__(self, session_id, file_path, edit_type, user_id=None, device_id=None,
+                content_before=None, content_after=None, diff=None):
+        self.session_id = session_id
+        self.file_path = file_path
+        self.edit_type = edit_type
+        self.user_id = user_id
+        self.device_id = device_id
+        self.content_before = content_before
+        self.content_after = content_after
+        self.diff = diff
+        self.edit_started_at = datetime.now(UTC)
+    
+    def to_dict(self):
+        try:
+            edit_started_at_str = None
+            edit_finished_at_str = None
+            
+            if self.edit_started_at:
+                try:
+                    edit_started_at_str = self.edit_started_at.isoformat()
+                except:
+                    edit_started_at_str = str(self.edit_started_at)
+                    
+            if self.edit_finished_at:
+                try:
+                    edit_finished_at_str = self.edit_finished_at.isoformat()
+                except:
+                    edit_finished_at_str = str(self.edit_finished_at)
+            
+            return {
+                'log_id': self.log_id,
+                'session_id': self.session_id,
+                'user_id': self.user_id,
+                'device_id': self.device_id,
+                'file_path': self.file_path,
+                'edit_type': self.edit_type,
+                'edit_started_at': edit_started_at_str,
+                'edit_finished_at': edit_finished_at_str,
+                'content_before': self.content_before,
+                'content_after': self.content_after,
+                'diff': self.diff
+            }
+        except Exception as e:
+            print(f"Error in FileEditLog.to_dict: {str(e)}")
+            return {
+                'log_id': self.log_id,
+                'session_id': self.session_id,
+                'file_path': self.file_path,
+                'edit_type': self.edit_type
             } 

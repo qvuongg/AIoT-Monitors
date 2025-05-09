@@ -23,7 +23,7 @@ function ProfileManagement() {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
-            // Fetch users (focusing on operators)
+            // Fetch users (only operators)
             const usersResponse = await axios.get('http://localhost:8000/api/auth/users', {
                 headers: { Authorization: `Bearer ${token}` }
             });
@@ -103,7 +103,7 @@ function ProfileManagement() {
 
     return (
         <div className="profile-management" style={{ padding: '1rem' }}>
-            <h1>Quản lý phân quyền người dùng</h1>
+            <h1>Gán profile cho Operator</h1>
 
             {profiles.length === 0 ? (
                 <p>Chưa có profiles nào. Vui lòng tạo profile trước.</p>
@@ -123,17 +123,17 @@ function ProfileManagement() {
                             ))}
                         </select>
 
-                        <h3>Gán người dùng cho profile này</h3>
+                        <h3>Gán Operator cho profile này</h3>
                         <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
                             <select
                                 value={selectedUser}
                                 onChange={(e) => setSelectedUser(e.target.value)}
                                 style={{ flex: 1, padding: '0.5rem' }}
                             >
-                                <option value="">-- Chọn người dùng --</option>
+                                <option value="">-- Chọn Operator --</option>
                                 {users.map(user => (
                                     <option key={user.id} value={user.id}>
-                                        {user.username} ({user.role})
+                                        {user.username} (Operator)
                                     </option>
                                 ))}
                             </select>
@@ -149,15 +149,15 @@ function ProfileManagement() {
                                     cursor: !selectedUser ? 'not-allowed' : 'pointer'
                                 }}
                             >
-                                Gán người dùng
+                                Gán Operator
                             </button>
                         </div>
                     </div>
 
                     <div>
-                        <h2>Người dùng đã được gán</h2>
+                        <h2>Operators đã được gán</h2>
                         {profileUsers.length === 0 ? (
-                            <p>Chưa có người dùng nào được gán cho profile này.</p>
+                            <p>Chưa có Operator nào được gán cho profile này.</p>
                         ) : (
                             <ul style={{ listStyle: 'none', padding: 0 }}>
                                 {profileUsers.map(user => (
@@ -173,7 +173,7 @@ function ProfileManagement() {
                                         }}
                                     >
                                         <div>
-                                            <strong>{user.username}</strong> ({user.role})
+                                            <strong>{user.username}</strong> (Operator)
                                             <div style={{ fontSize: '0.8rem', color: '#666' }}>{user.email}</div>
                                         </div>
                                         <button
