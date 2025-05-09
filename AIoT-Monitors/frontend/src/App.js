@@ -161,7 +161,7 @@ function App() {
           <Route
             path="/assign-profiles"
             element={
-              <ProtectedRoute roles={['admin', 'team_lead']}>
+              <ProtectedRoute roles={['team_lead']}>
                 <ProfileManagement />
               </ProtectedRoute>
             }
@@ -179,7 +179,7 @@ function App() {
           <Route
             path="/supervisor"
             element={
-              <ProtectedRoute roles={['admin', 'supervisor']}>
+              <ProtectedRoute roles={['supervisor']}>
                 <SupervisorDashboard user={user} />
               </ProtectedRoute>
             }
