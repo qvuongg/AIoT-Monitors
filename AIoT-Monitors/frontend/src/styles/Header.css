@@ -1,0 +1,137 @@
+.main-header {
+    background-color: #2c3e50;
+    color: white;
+    padding: 0;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+}
+
+.header-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 20px;
+    height: 70px;
+}
+
+/* Logo */
+.logo {
+    display: flex;
+    align-items: center;
+}
+
+.logo h1 {
+    font-size: 24px;
+    margin: 0;
+    font-weight: 600;
+    color: white;
+}
+
+/* Navigation */
+.main-nav {
+    display: flex;
+    height: 100%;
+}
+
+.nav-list {
+    display: flex;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    height: 100%;
+}
+
+.nav-item {
+    position: relative;
+    height: 100%;
+    display: flex;
+    align-items: center;
+}
+
+.nav-link {
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    height: 100%;
+    color: rgba(255, 255, 255, 0.8);
+    text-decoration: none;
+    font-weight: 500;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.nav-link.active {
+    color: white;
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.nav-link:hover {
+    color: white;
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* User controls */
+.user-controls {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.user-info {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.username {
+    font-weight: 500;
+    font-size: 14px;
+    color: white;
+}
+
+.user-role {
+    font-size: 12px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-top: 4px;
+    text-transform: capitalize;
+}
+
+.user-role.admin {
+    background-color: #e74c3c;
+    color: white;
+}
+
+.user-role.team_lead {
+    background-color: #2ecc71;
+    color: white;
+}
+
+.user-role.supervisor {
+    background-color: #3498db;
+    color: white;
+}
+
+.user-role.operator {
+    background-color: #f39c12;
+    color: white;
+}
+
+.logout-btn {
+    background-color: rgba(255, 255, 255, 0.15);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.logout-btn:hover {
+    background-color: rgba(255, 255, 255, 0.25);
+}
