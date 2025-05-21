@@ -1,0 +1,242 @@
+version: '3.8'
+
+services:
+  # --- Thiết bị Giả lập SSH (Ubuntu Base) ---
+
+  # Device 1: Core-Router-01
+  core-router-01:
+    build:
+      context: ./docker/ubuntu-ssh-device
+      dockerfile: Dockerfile
+    container_name: aiot-core-router-01
+    hostname: core-router-01.aiot.local
+    environment:
+      - SSH_USER=admin
+      - SSH_PASSWORD=secure_router_pwd123
+    ports:
+      - '2201:22'
+    networks:
+      aiot_network:
+        ipv4_address: 10.0.1.1
+    restart: unless-stopped
+
+  # Device 2: My Docker Device 1
+  my-docker-device-1:
+    build:
+      context: ./docker/ubuntu-ssh-device
+      dockerfile: Dockerfile
+    container_name: aiot-my-docker-device-1
+    hostname: mydockdev1.aiot.local
+    environment:
+      - SSH_USER=operator
+      - SSH_PASSWORD=operator_password
+    ports:
+      - '2221:22'
+    networks:
+      - aiot_network
+    restart: unless-stopped
+
+  # Device 3: Dist-Switch-01
+  dist-switch-01:
+    build:
+      context: ./docker/ubuntu-ssh-device
+      dockerfile: Dockerfile
+    container_name: aiot-dist-switch-01
+    hostname: dist-switch-01.aiot.local
+    environment:
+      - SSH_USER=netadmin
+      - SSH_PASSWORD=sw1tch_adm1n_pwd
+    ports:
+      - '2202:22'
+    networks:
+      aiot_network:
+        ipv4_address: 10.0.1.2
+    restart: unless-stopped
+
+  # Device 4: WebServer-Prod-01
+  webserver-prod-01:
+    build:
+      context: ./docker/ubuntu-ssh-device
+      dockerfile: Dockerfile
+    container_name: aiot-webserver-prod-01
+    hostname: webserver01.aiot.local
+    environment:
+      - SSH_USER=webadmin
+      - SSH_PASSWORD=WebServer#123
+    ports:
+      - '2203:22'
+    networks:
+      aiot_network:
+        ipv4_address: 10.0.2.10
+    restart: unless-stopped
+
+  # Device 5: DB-Server-Prod-01
+  db-server-prod-01:
+    build:
+      context: ./docker/ubuntu-ssh-device
+      dockerfile: Dockerfile
+    container_name: aiot-db-server-prod-01
+    hostname: dbserver01.aiot.local
+    environment:
+      - SSH_USER=dbadmin
+      - SSH_PASSWORD=DBServer@456
+    ports:
+      - '2204:22'
+    networks:
+      aiot_network:
+        ipv4_address: 10.0.2.20
+    restart: unless-stopped
+
+  # Device 6: Edge-Gateway-01
+  edge-gateway-01:
+    build:
+      context: ./docker/ubuntu-ssh-device
+      dockerfile: Dockerfile
+    container_name: aiot-edge-gateway-01
+    hostname: edgegw01.aiot.local
+    environment:
+      - SSH_USER=edgeadmin
+      - SSH_PASSWORD=3dge_Dev1ce!
+    ports:
+      - '2205:22'
+    networks:
+      aiot_network:
+        ipv4_address: 10.0.3.10
+    restart: unless-stopped
+
+  # Device 7: Edge-Processor-01
+  edge-processor-01:
+    build:
+      context: ./docker/ubuntu-ssh-device
+      dockerfile: Dockerfile
+    container_name: aiot-edge-processor-01
+    hostname: edgeproc01.aiot.local
+    environment:
+      - SSH_USER=aiuser
+      - SSH_PASSWORD=ML_Pr0c3ss1ng
+    ports:
+      - '2206:22'
+    networks:
+      aiot_network:
+        ipv4_address: 10.0.3.11
+    restart: unless-stopped
+
+  # Device 8: Firewall-External-01
+  firewall-external-01:
+    build:
+      context: ./docker/ubuntu-ssh-device
+      dockerfile: Dockerfile
+    container_name: aiot-firewall-external-01
+    hostname: fwext01.aiot.local
+    environment:
+      - SSH_USER=secadmin
+      - SSH_PASSWORD=F1r3w@ll_Adm1n
+    ports:
+      - '2207:22'
+    networks:
+      aiot_network:
+        ipv4_address: 10.0.5.1
+    restart: unless-stopped
+
+  # Device 9: IDS-System-01
+  ids-system-01:
+    build:
+      context: ./docker/ubuntu-ssh-device
+      dockerfile: Dockerfile
+    container_name: aiot-ids-system-01
+    hostname: ids01.aiot.local
+    environment:
+      - SSH_USER=idsadmin
+      - SSH_PASSWORD=1nTru$10n_D3t3ct
+    ports:
+      - '2208:22'
+    networks:
+      aiot_network:
+        ipv4_address: 10.0.5.2
+    restart: unless-stopped
+
+  # Device 10: Dev-Test-Server-01
+  dev-test-server-01:
+    build:
+      context: ./docker/ubuntu-ssh-device
+      dockerfile: Dockerfile
+    container_name: aiot-dev-test-server-01
+    hostname: devtest01.aiot.local
+    environment:
+      - SSH_USER=devtester
+      - SSH_PASSWORD=DevTest@2025
+    ports:
+      - '2222:22' # Dùng cổng map 2222
+    networks:
+      - aiot_network # Không gán IP tĩnh
+    restart: unless-stopped
+  # --- Kafka và Zookeeper ---
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.3.2
+    container_name: aiot-zookeeper
+    hostname: zookeeper.aiot.local
+    networks:
+      - aiot_network
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - '2181:2181'
+    restart: unless-stopped
+
+  kafka:
+    image: confluentinc/cp-kafka:7.3.2
+    container_name: aiot-kafka
+    hostname: kafka.aiot.local
+    networks:
+      - aiot_network
+    depends_on:
+      - zookeeper
+    ports:
+      - '9092:9092' # Cổng cho backend local kết nối
+      # - "19092:19092" # Cổng nội bộ (có thể không cần map ra ngoài)
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:19092,PLAINTEXT_HOST://localhost:9092 # Rất quan trọng
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true' # Tùy chọn
+    restart: unless-stopped
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: aiot-kafka-ui
+    hostname: kafka-ui.aiot.local
+    networks:
+      - aiot_network
+    depends_on:
+      - kafka # Chạy sau khi Kafka đã khởi động (ít nhất là bắt đầu)
+      - zookeeper
+    ports:
+      # Map cổng của Kafka UI ra ngoài để truy cập từ trình duyệt
+      - '8088:8080'
+    environment:
+      # Chỉ định địa chỉ Kafka broker để UI kết nối đến
+      # Dùng tên service và port nội bộ của Kafka trong mạng Docker
+      KAFKA_CLUSTERS_0_NAME: aiot-local-kafka # Tên hiển thị trên UI
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:19092 # << Dùng listener nội bộ của Kafka
+      # KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181 # Optional: chỉ định ZK nếu cần
+      # Xem tài liệu của Provectus/kafka-ui để biết thêm chi tiết
+      DYNAMIC_CONFIG_ENABLED: 'true' # Cho phép cấu hình qua UI (hữu ích)
+    restart: unless-stopped
+
+  # Định nghĩa mạng tùy chỉnh
+networks:
+  aiot_network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 10.0.0.0/16 # Đảm bảo subnet này không xung đột
+        # gateway: 10.0.0.1 # Tùy chọn
