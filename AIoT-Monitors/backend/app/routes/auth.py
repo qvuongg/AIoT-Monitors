@@ -397,7 +397,7 @@ def create_team_lead():
         'success': True,
         'message': 'Team Lead account created successfully',
         'user': new_user.to_dict()
-    }), 201
+    }), 201 
 
 @auth_bp.route('/reset-admin-password', methods=['POST'])
 def reset_admin_password():

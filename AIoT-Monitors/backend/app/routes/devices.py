@@ -11,12 +11,12 @@ devices_bp = Blueprint('devices', __name__)
 @devices_bp.route('/groups', methods=['POST'])
 @jwt_required()
 def create_device_group():
-    """Create a new device group (Admin only)"""
+    """Create a new device group (Admin or Team Lead)"""
     current_user_id = get_jwt_identity()
     current_user = User.query.get(current_user_id)
     
-    if not current_user or not current_user.is_admin():
-        return jsonify({'error': 'Only admins can create device groups'}), 403
+    if not current_user or not (current_user.is_admin() or current_user.is_team_lead()):
+        return jsonify({'error': 'Only admins and team leads can create device groups'}), 403
     
     data = request.get_json()
     
@@ -105,22 +105,15 @@ def add_device_to_group(group_id):
     if device.group_id == group_id:
         return jsonify({'error': 'Device is already in this group'}), 400
     
-    # Xác định xem có được phép gán thiết bị hay không
-    is_allowed_to_assign = (
-        current_user.is_admin() or  # Admin có thể gán bất kỳ thiết bị nào
-        device.assigned_by is None  # Chưa có ai gán thiết bị này
-    )
-    
-    if not is_allowed_to_assign:
-        return jsonify({
-            'error': 'This device has already been assigned to a group. Only Admin can reassign devices.',
-            'device': device.to_dict()
-        }), 403
+    # Quyền gán thiết bị:
+    # - Admin: gán lại bất kỳ thiết bị nào
+    # - Team Lead: chỉ gán thiết bị chưa thuộc group nào (group_id is None)
+    if current_user.is_team_lead() and device.group_id is not None:
+        return jsonify({'error': 'Team Lead chỉ được gán thiết bị chưa thuộc group nào'}), 403
     
     # Cập nhật thông tin nhóm và người gán
     device.group_id = group_id
     device.assigned_by = current_user.user_id
-    
     db.session.commit()
     
     return jsonify({
@@ -132,12 +125,12 @@ def add_device_to_group(group_id):
 @devices_bp.route('', methods=['POST'])
 @jwt_required()
 def create_device():
-    """Create a new device (Admin only)"""
+    """Create a new device (Admin or Team Lead)"""
     current_user_id = get_jwt_identity()
     current_user = User.query.get(current_user_id)
     
-    if not current_user or not current_user.is_admin():
-        return jsonify({'error': 'Only admins can create devices'}), 403
+    if not current_user or not (current_user.is_admin() or current_user.is_team_lead()):
+        return jsonify({'error': 'Only admins and team leads can create devices'}), 403
     
     data = request.get_json()
     
@@ -155,7 +148,7 @@ def create_device():
         ssh_port=data.get('ssh_port', 22),
         username=data.get('username'),
         authentication_method=data.get('authentication_method', 'key'),
-        group_id=data.get('group_id'),
+        group_id=data.get('group_id'),  # Optional group_id
         location=data.get('location'),
         customer_id=data.get('customer_id'),
         created_by=current_user.user_id

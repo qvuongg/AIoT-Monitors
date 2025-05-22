@@ -27,30 +27,12 @@ const Header = ({ user, setIsAuthenticated, setUser }) => {
                                 Dashboard
                             </NavLink>
                         </li>
-
                         {/* Sessions link for all roles */}
                         <li className="nav-item">
                             <NavLink to="/sessions" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
                                 Sessions
                             </NavLink>
                         </li>
-
-                        {/* Admin: Dashboard, Quản lý tài khoản */}
-                        {user && user.role === 'admin' && (
-                            <>
-                                <li className="nav-item">
-                                    <NavLink to="/accounts" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
-                                        Quản lý tài khoản
-                                    </NavLink>
-                                </li>
-                                <li className="nav-item">
-                                    <NavLink to="/change-password" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
-                                        Đổi mật khẩu
-                                    </NavLink>
-                                </li>
-                            </>
-                        )}
-
                         {/* Team Lead: Dashboard, Command Lists, Profiles, Profile Assignment */}
                         {user && user.role === 'team_lead' && (
                             <>
@@ -69,9 +51,33 @@ const Header = ({ user, setIsAuthenticated, setUser }) => {
                                         Assign Profile
                                     </NavLink>
                                 </li>
+                                <li className="nav-item">
+                                    <NavLink to="/create-device" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
+                                        Create Device
+                                    </NavLink>
+                                </li>
+                                <li className="nav-item">
+                                    <NavLink to="/create-device-group" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
+                                        Create Device Group
+                                    </NavLink>
+                                </li>
                             </>
                         )}
-
+                        {/* Admin: Dashboard, Quản lý tài khoản */}
+                        {user && user.role === 'admin' && (
+                            <>
+                                <li className="nav-item">
+                                    <NavLink to="/accounts" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
+                                        Quản lý tài khoản
+                                    </NavLink>
+                                </li>
+                                <li className="nav-item">
+                                    <NavLink to="/change-password" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
+                                        Đổi mật khẩu
+                                    </NavLink>
+                                </li>
+                            </>
+                        )}
                         {/* Supervisor only */}
                         {user && user.role === 'supervisor' && (
                             <li className="nav-item">

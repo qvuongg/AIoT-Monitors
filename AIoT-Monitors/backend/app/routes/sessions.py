@@ -5,7 +5,6 @@ from app.models.user import User
 from app.models.device import Device
 from app.models.session import Session, SessionStatus, CommandLog
 from app.models.command import Command
-from app.models.file_edit_log import FileEditLog
 from app.utils.ssh_client import SSHClient
 import paramiko
 import json
@@ -103,7 +102,7 @@ def execute_command(session_id):
                 
             # Check if any command in the profile's command list matches the raw command
             for cmd in profile.command_list.commands:
-                if cmd.command.strip() == raw_command:
+                if cmd.command_text.strip() == raw_command:
                     command_allowed = True
                     matching_command = cmd
                     break
@@ -261,14 +260,13 @@ def end_session(session_id):
     
     data = request.get_json()
     status = data.get('status', SessionStatus.COMPLETED) if data else SessionStatus.COMPLETED
-    terminated_by = data.get('terminated_by') if data else None
     
     # Validate status
     if status not in SessionStatus.all_statuses():
         return jsonify({'error': f'Invalid status. Must be one of: {SessionStatus.all_statuses()}'}), 400
     
     # End the session
-    session.end_session(status, terminated_by)
+    session.end_session(status)
     db.session.commit()
     
     return jsonify({
@@ -300,6 +298,12 @@ def get_sessions():
     # Operators can only see their own sessions
     if current_user.is_operator():
         query = query.filter(Session.user_id == current_user.user_id)
+    # Team leads can see all sessions
+    elif current_user.is_team_lead():
+        pass  # No additional filter needed
+    # Supervisors and admins can see all sessions
+    elif current_user.is_supervisor() or current_user.is_admin():
+        pass  # No additional filter needed
     
     # Order by session id descending (newest first)
     query = query.order_by(Session.session_id.desc())
@@ -310,64 +314,33 @@ def get_sessions():
     
     session_list = []
     for session in sessions:
-        session_data = session.to_dict()
-        
-        # Include extra details if requested
+        session_dict = session.to_dict()
         if detailed:
-            # Get device details
-            try:
-                device = Device.query.get(session.device_id)
-                if device:
-                    session_data['device'] = {
-                        'id': device.device_id,
-                        'name': device.device_name,
-                        'ip_address': device.ip_address,
-                        'device_type': device.device_type,
-                        'status': device.status
-                    }
-            except Exception as e:
-                print(f"Error getting device details: {str(e)}")
+            # Add user details
+            user = User.query.get(session.user_id)
+            if user:
+                session_dict['user'] = {
+                    'id': user.user_id,
+                    'username': user.username,
+                    'role': user.role
+                }
             
-            # Get last command if available
-            try:
-                last_command = session.command_logs.order_by(CommandLog.executed_at.desc()).first()
-                if last_command:
-                    session_data['last_command'] = {
-                        'command': last_command.command_text,
-                        'executed_at': last_command.executed_at.isoformat() if last_command.executed_at else None,
-                        'status': last_command.status
-                    }
-            except Exception as e:
-                print(f"Error getting last command: {str(e)}")
+            # Add device details
+            device = Device.query.get(session.device_id)
+            if device:
+                session_dict['device'] = {
+                    'id': device.device_id,
+                    'name': device.device_name,
+                    'ip_address': device.ip_address
+                }
         
-        session_list.append(session_data)
-    
-    # For operators, include their allowed commands
-    allowed_commands = []
-    if current_user.is_operator():
-        try:
-            for profile in current_user.profiles:
-                if profile.command_list:
-                    for cmd in profile.command_list.commands:
-                        allowed_commands.append({
-                            'id': cmd.command_id,
-                            'command': cmd.command,
-                            'description': cmd.description,
-                            'profile_id': profile.profile_id,
-                            'profile_name': profile.profile_name
-                        })
-        except Exception as e:
-            print(f"Error getting allowed commands: {str(e)}")
+        session_list.append(session_dict)
     
     return jsonify({
         'sessions': session_list,
-        'pagination': {
-            'total': total_count,
-            'offset': offset,
-            'limit': limit,
-            'has_more': offset + limit < total_count
-        },
-        'allowed_commands': allowed_commands if current_user.is_operator() else []
+        'total': total_count,
+        'limit': limit,
+        'offset': offset
     }), 200
 
 @sessions_bp.route('/<int:session_id>', methods=['GET'])
@@ -388,6 +361,9 @@ def get_session(session_id):
     # Check if the user has permission to view this session
     # Operators can only view their own sessions
     if current_user.is_operator() and session.user_id != current_user.user_id:
+        return jsonify({'error': 'You do not have permission to view this session'}), 403
+    # Team leads, supervisors and admins can view all sessions
+    elif not (current_user.is_team_lead() or current_user.is_supervisor() or current_user.is_admin()):
         return jsonify({'error': 'You do not have permission to view this session'}), 403
     
     session_data = session.to_dict()
@@ -438,7 +414,7 @@ def get_session(session_id):
                     for cmd in profile.command_list.commands:
                         allowed_commands.append({
                             'id': cmd.command_id,
-                            'command': cmd.command,
+                            'command': cmd.command_text,
                             'description': cmd.description,
                             'profile_id': profile.profile_id,
                             'profile_name': profile.profile_name
@@ -491,29 +467,3 @@ def get_session_commands(session_id):
     return jsonify({
         'commands': [command.to_dict() for command in session.command_logs]
     }), 200
-
-@sessions_bp.route('/<int:session_id>/file-edits', methods=['GET'])
-@jwt_required()
-def get_session_file_edits(session_id):
-    """Get all file edits in a session"""
-    current_user_id = get_jwt_identity()
-    current_user = User.query.get(current_user_id)
-    
-    if not current_user:
-        return jsonify({'error': 'User not found'}), 404
-    
-    session = Session.query.get(session_id)
-    
-    if not session:
-        return jsonify({'error': 'Session not found'}), 404
-    
-    # Check if the user has permission to view this session
-    if session.user_id != current_user.user_id and not (current_user.is_admin() or current_user.is_supervisor()):
-        return jsonify({'error': 'You do not have permission to view this session'}), 403
-    
-    # Get file edit logs for this session
-    file_edits = FileEditLog.query.filter_by(session_id=session_id).order_by(FileEditLog.edit_started_at.desc()).all()
-    
-    return jsonify({
-        'file_edits': [edit.to_dict() for edit in file_edits]
-    }), 200 

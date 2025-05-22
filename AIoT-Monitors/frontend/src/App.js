@@ -17,6 +17,8 @@ import Header from './components/Header';
 import OperatorDashboard from './components/OperatorDashboard';
 import AdminDashboard from './components/AdminDashboard';
 import TeamLeadDashboard from './components/TeamLeadDashboard';
+import CreateDevice from './components/CreateDevice';
+import CreateDeviceGroup from './components/CreateDeviceGroup';
 
 // Import styles
 import './styles/OperatorDashboard.css';
@@ -159,9 +161,27 @@ function App() {
           />
 
           <Route
+            path="/create-device"
+            element={
+              <ProtectedRoute roles={['admin', 'team_lead']}>
+                <CreateDevice />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/create-device-group"
+            element={
+              <ProtectedRoute roles={['admin', 'team_lead']}>
+                <CreateDeviceGroup />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
             path="/assign-profiles"
             element={
-              <ProtectedRoute roles={['team_lead']}>
+              <ProtectedRoute roles={['admin', 'team_lead']}>
                 <ProfileManagement />
               </ProtectedRoute>
             }
@@ -179,7 +199,7 @@ function App() {
           <Route
             path="/supervisor"
             element={
-              <ProtectedRoute roles={['supervisor']}>
+              <ProtectedRoute roles={['admin', 'supervisor']}>
                 <SupervisorDashboard user={user} />
               </ProtectedRoute>
             }

@@ -28,8 +28,7 @@ axios.interceptors.response.use(
             console.error('API Error:', error.response.data);
 
             // Xử lý lỗi 401 (Unauthorized)
-            if (error.response.status === 401 &&
-                !window.location.pathname.includes('/change-password')) {
+            if (error.response.status === 401) {
                 localStorage.removeItem('token');
                 localStorage.removeItem('user');
                 window.location.href = '/login';

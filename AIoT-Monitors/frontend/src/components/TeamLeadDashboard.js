@@ -196,21 +196,26 @@ const TeamLeadDashboard = ({ user }) => {
                     </div>
                     <div className="card-content">
                         <div className="actions-grid">
+                            <button className="action-btn" onClick={() => navigateTo("/create-device")}>
+                                <div className="action-icon create-device-icon"></div>
+                                <div className="action-label">Tạo Thiết Bị</div>
+                            </button>
+                            <button className="action-btn" onClick={() => navigateTo("/create-device-group")}>
+                                <div className="action-icon create-group-icon"></div>
+                                <div className="action-label">Tạo Nhóm Thiết Bị</div>
+                            </button>
                             <button className="action-btn" onClick={() => navigateTo("/profiles")}>
                                 <div className="action-icon create-profile-icon"></div>
                                 <div className="action-label">Create Profile</div>
                             </button>
-
                             <button className="action-btn" onClick={() => navigateTo("/command-lists")}>
                                 <div className="action-icon create-command-icon"></div>
                                 <div className="action-label">Create Command List</div>
                             </button>
-
                             <button className="action-btn" onClick={() => navigateTo("/assign-profiles")}>
                                 <div className="action-icon assign-profile-icon"></div>
                                 <div className="action-label">Assign Profile</div>
                             </button>
-
                             <button className="action-btn" onClick={() => navigateTo("/sessions")}>
                                 <div className="action-icon view-session-icon"></div>
                                 <div className="action-label">View Sessions</div>
