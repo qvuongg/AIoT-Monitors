@@ -21,6 +21,10 @@ def create_session():
     if not current_user:
         return jsonify({'error': 'User not found'}), 404
     
+    # Chỉ cho phép operator tạo session
+    if not current_user.is_operator():
+        return jsonify({'error': 'Only operators can create sessions'}), 403
+    
     data = request.get_json()
     
     if not data or 'device_id' not in data:
@@ -38,7 +42,7 @@ def create_session():
             has_permission = True
             break
     
-    if not has_permission and not (current_user.is_admin() or current_user.is_supervisor()):
+    if not has_permission:
         return jsonify({'error': 'You do not have permission to access this device'}), 403
     
     # Create a new session
@@ -67,13 +71,17 @@ def execute_command(session_id):
     if not current_user:
         return jsonify({'error': 'User not found'}), 404
     
+    # Chỉ cho phép operator thực hiện lệnh
+    if not current_user.is_operator():
+        return jsonify({'error': 'Only operators can execute commands'}), 403
+    
     session = Session.query.get(session_id)
     
     if not session:
         return jsonify({'error': 'Session not found'}), 404
     
     # Check if the user owns this session
-    if session.user_id != current_user.user_id and not (current_user.is_admin() or current_user.is_supervisor()):
+    if session.user_id != current_user.user_id:
         return jsonify({'error': 'You do not own this session'}), 403
     
     # Check if the session is active
@@ -87,42 +95,40 @@ def execute_command(session_id):
     
     device = Device.query.get(session.device_id)
     raw_command = data['command'].strip()
-    command_id = data.get('command_id')  # Optional now
     
-    # Check permission based on user role
-    if current_user.is_operator():
-        # For operators, validate the command against their assigned profiles
-        command_allowed = False
-        matching_command = None
-        
-        # Loop through the user's profiles to find the command
-        for profile in current_user.profiles:
-            if not profile.command_list:
-                continue
-                
-            # Check if any command in the profile's command list matches the raw command
-            for cmd in profile.command_list.commands:
-                if cmd.command_text.strip() == raw_command:
-                    command_allowed = True
-                    matching_command = cmd
-                    break
-                    
-            if command_allowed:
+    # Validate the command against operator's profiles
+    command_allowed = False
+    matching_command = None
+    
+    # Loop through the user's profiles to find the command
+    for profile in current_user.profiles:
+        if not profile.command_list:
+            continue
+            
+        # Check if any command in the profile's command list matches the raw command
+        for cmd in profile.command_list.commands:
+            if cmd.command_text.strip() == raw_command:
+                command_allowed = True
+                matching_command = cmd
                 break
                 
-        if not command_allowed:
-            return jsonify({
-                'error': 'You do not have permission to use this command',
-                'message': 'This command is not in your allowed commands list'
-            }), 403
+        if command_allowed:
+            break
+            
+    if not command_allowed:
+        return jsonify({
+            'error': 'You do not have permission to use this command',
+            'message': 'This command is not in your allowed commands list'
+        }), 403
     
     # Execute the command via SSH
     try:
+        print(f"Connecting to SSH: {device.ip_address}:{device.ssh_port} with user {device.username}")
         ssh_client = SSHClient(
             hostname=device.ip_address,
             port=device.ssh_port,
             username=device.username,
-            password=None,
+            password=device.password,  # Sử dụng password từ device
             authentication_method=device.authentication_method
         )
         
@@ -157,10 +163,13 @@ def execute_command(session_id):
         }), 200
         
     except paramiko.AuthenticationException:
+        print(f"SSH Authentication failed for {device.ip_address}:{device.ssh_port}")
         return jsonify({'error': 'Authentication failed', 'success': False}), 401
     except paramiko.SSHException as e:
+        print(f"SSH error for {device.ip_address}:{device.ssh_port}: {str(e)}")
         return jsonify({'error': f'SSH error: {str(e)}', 'success': False}), 500
     except Exception as e:
+        print(f"Error connecting to {device.ip_address}:{device.ssh_port}: {str(e)}")
         return jsonify({'error': f'Error: {str(e)}', 'success': False}), 500
 
 @sessions_bp.route('/<int:session_id>/edit-file', methods=['POST'])
@@ -173,13 +182,17 @@ def edit_file(session_id):
     if not current_user:
         return jsonify({'error': 'User not found'}), 404
     
+    # Chỉ cho phép operator chỉnh sửa file
+    if not current_user.is_operator():
+        return jsonify({'error': 'Only operators can edit files'}), 403
+    
     session = Session.query.get(session_id)
     
     if not session:
         return jsonify({'error': 'Session not found'}), 404
     
     # Check if the user owns this session
-    if session.user_id != current_user.user_id and not (current_user.is_admin() or current_user.is_supervisor()):
+    if session.user_id != current_user.user_id:
         return jsonify({'error': 'You do not own this session'}), 403
     
     # Check if the session is active
@@ -199,7 +212,7 @@ def edit_file(session_id):
             hostname=device.ip_address,
             port=device.ssh_port,
             username=device.username,
-            password=None,
+            password=device.password,  # Sử dụng password từ device
             authentication_method=device.authentication_method
         )
         
@@ -298,47 +311,14 @@ def get_sessions():
     # Operators can only see their own sessions
     if current_user.is_operator():
         query = query.filter(Session.user_id == current_user.user_id)
-    # Team leads can see all sessions
-    elif current_user.is_team_lead():
-        pass  # No additional filter needed
-    # Supervisors and admins can see all sessions
-    elif current_user.is_supervisor() or current_user.is_admin():
-        pass  # No additional filter needed
-    
-    # Order by session id descending (newest first)
-    query = query.order_by(Session.session_id.desc())
     
     # Apply pagination
-    total_count = query.count()
-    sessions = query.offset(offset).limit(limit).all()
-    
-    session_list = []
-    for session in sessions:
-        session_dict = session.to_dict()
-        if detailed:
-            # Add user details
-            user = User.query.get(session.user_id)
-            if user:
-                session_dict['user'] = {
-                    'id': user.user_id,
-                    'username': user.username,
-                    'role': user.role
-                }
-            
-            # Add device details
-            device = Device.query.get(session.device_id)
-            if device:
-                session_dict['device'] = {
-                    'id': device.device_id,
-                    'name': device.device_name,
-                    'ip_address': device.ip_address
-                }
-        
-        session_list.append(session_dict)
+    total = query.count()
+    sessions = query.order_by(Session.start_time.desc()).offset(offset).limit(limit).all()
     
     return jsonify({
-        'sessions': session_list,
-        'total': total_count,
+        'sessions': [session.to_dict(detailed=detailed) for session in sessions],
+        'total': total,
         'limit': limit,
         'offset': offset
     }), 200
@@ -360,11 +340,18 @@ def get_session(session_id):
     
     # Check if the user has permission to view this session
     # Operators can only view their own sessions
-    if current_user.is_operator() and session.user_id != current_user.user_id:
-        return jsonify({'error': 'You do not have permission to view this session'}), 403
-    # Team leads, supervisors and admins can view all sessions
-    elif not (current_user.is_team_lead() or current_user.is_supervisor() or current_user.is_admin()):
-        return jsonify({'error': 'You do not have permission to view this session'}), 403
+    if current_user.is_operator():
+        if session.user_id != current_user.user_id:
+            return jsonify({'error': 'You do not have permission to view this session'}), 403
+        # Check if operator has access to this device through their profiles
+        device = Device.query.get(session.device_id)
+        has_permission = False
+        for profile in current_user.profiles:
+            if device in profile.device_group.devices:
+                has_permission = True
+                break
+        if not has_permission:
+            return jsonify({'error': 'You do not have permission to access this device'}), 403
     
     session_data = session.to_dict()
     

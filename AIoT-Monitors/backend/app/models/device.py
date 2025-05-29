@@ -52,6 +52,7 @@ class Device(db.Model):
     device_type = db.Column(db.String(50), nullable=False)
     ssh_port = db.Column(db.Integer, default=22)
     username = db.Column(db.String(50))
+    password = db.Column(db.String(100))
     authentication_method = db.Column(db.String(20), default='key')
     last_checked_at = db.Column(db.DateTime)
     status = db.Column(db.String(20), default='unknown')
@@ -68,13 +69,14 @@ class Device(db.Model):
     sessions = db.relationship('Session', backref='device', lazy='dynamic')
     
     def __init__(self, device_name, ip_address, device_type, 
-                 ssh_port=22, username=None, authentication_method='key', created_by=None, 
+                 ssh_port=22, username=None, password=None, authentication_method='key', created_by=None, 
                  group_id=None, location=None, customer_id=None, assigned_by=None):
         self.device_name = device_name
         self.ip_address = ip_address
         self.device_type = device_type
         self.ssh_port = ssh_port
         self.username = username
+        self.password = password
         self.authentication_method = authentication_method
         self.created_by = created_by
         self.group_id = group_id

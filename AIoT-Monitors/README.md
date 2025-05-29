@@ -15,6 +15,32 @@ AIoT Monitors là một ứng dụng giám sát và quản lý thiết bị IoT,
 - Python 3.8 hoặc cao hơn
 - Node.js 14 hoặc cao hơn
 - PostgreSQL (đã cài đặt và đang chạy)
+- Docker và Docker Compose
+
+### Thiết lập Docker
+
+1. Build và chạy các container Docker:
+```bash
+# Build các container
+docker-compose build
+
+# Chạy các container
+docker-compose up -d
+```
+
+2. Tạo các user SSH cho các container:
+```bash
+# Cấp quyền thực thi cho script
+chmod +x docker/create_users.sh
+
+# Chạy script tạo user
+./docker/create_users.sh
+```
+
+3. Kiểm tra trạng thái các container:
+```bash
+docker-compose ps
+```
 
 ### Thiết lập cơ sở dữ liệu
 1. Tạo cơ sở dữ liệu PostgreSQL tên `aiot_monitors`:
@@ -55,6 +81,21 @@ npm start
 ```
 
 Frontend sẽ chạy tại: http://localhost:3000
+
+### Thông tin kết nối SSH cho các thiết bị
+
+| Thiết bị | Username | Password | Port |
+|----------|----------|----------|------|
+| Core Router 01 | admin | secure_router_pwd123 | 2201 |
+| My Docker Device 1 | operator | operator_password | 2221 |
+| Dist Switch 01 | netadmin | sw1tch_adm1n_pwd | 2202 |
+| Web Server Prod 01 | webadmin | WebServer#123 | 2203 |
+| DB Server Prod 01 | dbadmin | DBServer@456 | 2204 |
+| Edge Gateway 01 | edgeadmin | 3dge_Dev1ce! | 2205 |
+| Edge Processor 01 | aiuser | ML_Pr0c3ss1ng | 2206 |
+| Firewall External 01 | secadmin | F1r3w@ll_Adm1n | 2207 |
+| IDS System 01 | idsadmin | 1nTru$10n_D3t3ct | 2208 |
+| Dev Test Server 01 | devtester | DevTest@2025 | 2222 |
 
 ## Kiểm tra kết nối API
 Có hai cách để kiểm tra kết nối API:

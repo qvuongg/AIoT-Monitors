@@ -19,7 +19,18 @@ class SSHClient:
             self.client = paramiko.SSHClient()
             self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             
-            # Xử lý trường hợp không có mật khẩu hoặc key
+            # Nếu authentication_method là password, ưu tiên sử dụng password
+            if self.authentication_method == 'password' and self.password:
+                print(f"Using password authentication for {self.hostname}:{self.port}")
+                self.client.connect(
+                    hostname=self.hostname,
+                    port=self.port,
+                    username=self.username,
+                    password=self.password
+                )
+                return True
+            
+            # Nếu không, thử các phương thức xác thực khác
             if self.authentication_method == 'key' or (self.key_file and os.path.exists(self.key_file)):
                 if self.key_file and os.path.exists(self.key_file):
                     key = paramiko.RSAKey.from_private_key_file(self.key_file)

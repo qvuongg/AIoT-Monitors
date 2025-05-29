@@ -170,66 +170,67 @@ services:
     networks:
       - aiot_network # Không gán IP tĩnh
     restart: unless-stopped
+
   # --- Kafka và Zookeeper ---
+  # Comment tạm thời các service này
+  # zookeeper:
+  #   image: confluentinc/cp-zookeeper:7.3.2
+  #   container_name: aiot-zookeeper
+  #   hostname: zookeeper.aiot.local
+  #   networks:
+  #     - aiot_network
+  #   environment:
+  #     ZOOKEEPER_CLIENT_PORT: 2181
+  #     ZOOKEEPER_TICK_TIME: 2000
+  #   ports:
+  #     - '2181:2181'
+  #   restart: unless-stopped
 
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.3.2
-    container_name: aiot-zookeeper
-    hostname: zookeeper.aiot.local
-    networks:
-      - aiot_network
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-    ports:
-      - '2181:2181'
-    restart: unless-stopped
+  # kafka:
+  #   image: confluentinc/cp-kafka:7.3.2
+  #   container_name: aiot-kafka
+  #   hostname: kafka.aiot.local
+  #   networks:
+  #     - aiot_network
+  #   depends_on:
+  #     - zookeeper
+  #   ports:
+  #     - '9092:9092' # Cổng cho backend local kết nối
+  #     # - "19092:19092" # Cổng nội bộ (có thể không cần map ra ngoài)
+  #   environment:
+  #     KAFKA_BROKER_ID: 1
+  #     KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+  #     KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+  #     KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:19092,PLAINTEXT_HOST://localhost:9092 # Rất quan trọng
+  #     KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+  #     KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+  #     KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+  #     KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+  #     KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+  #     KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true' # Tùy chọn
+  #   restart: unless-stopped
 
-  kafka:
-    image: confluentinc/cp-kafka:7.3.2
-    container_name: aiot-kafka
-    hostname: kafka.aiot.local
-    networks:
-      - aiot_network
-    depends_on:
-      - zookeeper
-    ports:
-      - '9092:9092' # Cổng cho backend local kết nối
-      # - "19092:19092" # Cổng nội bộ (có thể không cần map ra ngoài)
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:19092,PLAINTEXT_HOST://localhost:9092 # Rất quan trọng
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true' # Tùy chọn
-    restart: unless-stopped
-
-  kafka-ui:
-    image: provectuslabs/kafka-ui:latest
-    container_name: aiot-kafka-ui
-    hostname: kafka-ui.aiot.local
-    networks:
-      - aiot_network
-    depends_on:
-      - kafka # Chạy sau khi Kafka đã khởi động (ít nhất là bắt đầu)
-      - zookeeper
-    ports:
-      # Map cổng của Kafka UI ra ngoài để truy cập từ trình duyệt
-      - '8088:8080'
-    environment:
-      # Chỉ định địa chỉ Kafka broker để UI kết nối đến
-      # Dùng tên service và port nội bộ của Kafka trong mạng Docker
-      KAFKA_CLUSTERS_0_NAME: aiot-local-kafka # Tên hiển thị trên UI
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:19092 # << Dùng listener nội bộ của Kafka
-      # KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181 # Optional: chỉ định ZK nếu cần
-      # Xem tài liệu của Provectus/kafka-ui để biết thêm chi tiết
-      DYNAMIC_CONFIG_ENABLED: 'true' # Cho phép cấu hình qua UI (hữu ích)
-    restart: unless-stopped
+  # kafka-ui:
+  #   image: provectuslabs/kafka-ui:latest
+  #   container_name: aiot-kafka-ui
+  #   hostname: kafka-ui.aiot.local
+  #   networks:
+  #     - aiot_network
+  #   depends_on:
+  #     - kafka # Chạy sau khi Kafka đã khởi động (ít nhất là bắt đầu)
+  #     - zookeeper
+  #   ports:
+  #     # Map cổng của Kafka UI ra ngoài để truy cập từ trình duyệt
+  #     - '8088:8080'
+  #   environment:
+  #     # Chỉ định địa chỉ Kafka broker để UI kết nối đến
+  #     # Dùng tên service và port nội bộ của Kafka trong mạng Docker
+  #     KAFKA_CLUSTERS_0_NAME: aiot-local-kafka # Tên hiển thị trên UI
+  #     KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:19092 # << Dùng listener nội bộ của Kafka
+  #     # KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181 # Optional: chỉ định ZK nếu cần
+  #     # Xem tài liệu của Provectus/kafka-ui để biết thêm chi tiết
+  #     DYNAMIC_CONFIG_ENABLED: 'true' # Cho phép cấu hình qua UI (hữu ích)
+  #   restart: unless-stopped
 
   # Định nghĩa mạng tùy chỉnh
 networks:

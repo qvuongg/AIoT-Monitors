@@ -294,9 +294,9 @@ INSERT INTO device_groups (group_name, description, created_by, is_active) VALUE
 
 -- Devices
 INSERT INTO devices (group_id, device_name, ip_address, device_type, ssh_port, username, authentication_method, last_checked_at, status, location, customer_id, created_by, is_active, assigned_by) VALUES
-(1, 'Factory Temp Sensor 1', '192.168.1.101', 'temperature_sensor', 22, 'device_user', 'key', NOW() - INTERVAL '1 hour', 'online', 'North Wing', 'CUST001', 1, TRUE, 1),
+(1, 'Factory Temp Sensor 1', '10.0.1.1', 'temperature_sensor', 22, 'device_user', 'key', NOW() - INTERVAL '1 hour', 'online', 'North Wing', 'CUST001', 1, TRUE, 1),
 (1, 'Factory Humidity Sensor 1', '192.168.1.102', 'humidity_sensor', 22, 'device_user', 'key', NOW() - INTERVAL '2 hour', 'online', 'North Wing', 'CUST001', 1, TRUE, 1),
-(1, 'Factory Controller 1', '192.168.1.103', 'controller', 22, 'admin_device', 'password', NOW() - INTERVAL '30 minutes', 'online', 'Control Room', 'CUST001', 1, TRUE, 1),
+(1, 'Factory Controller 1', '10.0.1.2', 'controller', 22, 'admin_device', 'password', NOW() - INTERVAL '30 minutes', 'online', 'Control Room', 'CUST001', 1, TRUE, 1),
 (2, 'Office HVAC Controller', '192.168.2.101', 'hvac_controller', 22, 'hvac_admin', 'key', NOW() - INTERVAL '45 minutes', 'online', 'Main Office', 'CUST002', 2, TRUE, 2),
 (2, 'Reception Area Monitor', '192.168.2.102', 'environment_monitor', 22, 'monitor_user', 'key', NOW() - INTERVAL '3 hours', 'offline', 'Reception', 'CUST002', 2, TRUE, 2),
 (3, 'Warehouse Temp 1', '192.168.3.101', 'temperature_sensor', 22, 'warehouse_user', 'key', NOW() - INTERVAL '15 minutes', 'online', 'Warehouse A', 'CUST003', 3, TRUE, 3),

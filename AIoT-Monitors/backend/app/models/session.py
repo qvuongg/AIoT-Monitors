@@ -40,7 +40,7 @@ class Session(db.Model):
         self.end_time = datetime.now(UTC)
         self.terminated_by = terminated_by
     
-    def to_dict(self):
+    def to_dict(self, detailed=False):
         try:
             # Lấy thông tin user và device một cách an toàn
             user_name = None
@@ -84,7 +84,7 @@ class Session(db.Model):
             except Exception as e:
                 print(f"Error counting commands for session {self.session_id}: {str(e)}")
             
-            return {
+            result = {
                 'id': self.session_id,
                 'user_id': self.user_id,
                 'user_name': user_name,
@@ -97,6 +97,16 @@ class Session(db.Model):
                 'ip_address': self.ip_address,
                 'command_count': command_count
             }
+            
+            if detailed:
+                # Thêm thông tin chi tiết nếu cần
+                try:
+                    if hasattr(self, 'command_logs'):
+                        result['commands'] = [cmd.to_dict() for cmd in self.command_logs]
+                except Exception as e:
+                    print(f"Error getting detailed commands for session {self.session_id}: {str(e)}")
+            
+            return result
         except Exception as e:
             print(f"Error in Session.to_dict: {str(e)}")
             # Trả về dữ liệu tối thiểu trong trường hợp có lỗi
