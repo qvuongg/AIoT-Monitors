@@ -54,6 +54,7 @@ class User(UserMixin, db.Model):
     
     # Relationships
     sessions = db.relationship('Session', backref='user', lazy='dynamic', foreign_keys='Session.user_id')
+    created_commands = db.relationship('Command', back_populates='creator', foreign_keys='Command.created_by')
     
     # Updated to use profiles through UserProfile model instead of association table
     @property

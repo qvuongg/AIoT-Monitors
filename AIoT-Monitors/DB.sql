@@ -71,6 +71,7 @@ CREATE TABLE commands (
     description VARCHAR(255),
     is_dangerous BOOLEAN DEFAULT FALSE,
     requires_confirmation BOOLEAN DEFAULT FALSE,
+    is_file_edit BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_by INTEGER REFERENCES users(user_id) DEFERRABLE INITIALLY DEFERRED
 );
@@ -313,18 +314,36 @@ INSERT INTO command_lists (list_name, description, created_by, is_active) VALUES
 ('Advanced Operations', 'Advanced system operation commands', 1, TRUE);
 
 -- Commands
-INSERT INTO commands (list_id, command_text, description, is_dangerous, requires_confirmation, created_by) VALUES
-(1, 'uptime', 'Show system uptime', FALSE, FALSE, 1),
-(1, 'df -h', 'Show disk usage', FALSE, FALSE, 1),
-(1, 'free -m', 'Show memory usage', FALSE, FALSE, 1),
-(1, 'ps aux | grep python', 'Show running python processes', FALSE, FALSE, 2),
-(2, 'ping -c 4 google.com', 'Check internet connectivity', FALSE, FALSE, 1),
-(2, 'ifconfig', 'Show network interfaces', FALSE, FALSE, 1),
-(2, 'netstat -tuln', 'Show listening ports', FALSE, FALSE, 2),
-(3, 'cat /sys/class/thermal/thermal_zone0/temp', 'Read CPU temperature', FALSE, FALSE, 3),
-(3, 'echo "1" > /sys/devices/system/cpu/cpufreq/boost', 'Enable CPU boost', TRUE, TRUE, 1),
-(4, 'find /tmp -type f -mtime +7 -delete', 'Delete temp files older than 7 days', TRUE, TRUE, 2),
-(5, 'service nginx restart', 'Restart web server', TRUE, TRUE, 1);
+INSERT INTO commands (list_id, command_text, description, is_dangerous, requires_confirmation, is_file_edit, created_by) VALUES
+-- List 1: System Diagnostics
+(1, 'mkdir -p /tmp/aiot_test', 'Tạo thư mục cha /tmp/aiot_test', FALSE, FALSE, TRUE, 1),
+(1, 'touch /tmp/aiot_test/test1.txt', 'Tạo file test1.txt', FALSE, FALSE, TRUE, 1),
+(1, 'echo "Hello AIoT" > /tmp/aiot_test/test1.txt', 'Ghi nội dung vào test1.txt', FALSE, FALSE, TRUE, 1),
+(1, 'cat /tmp/aiot_test/test1.txt', 'Xem nội dung test1.txt', FALSE, FALSE, TRUE, 1),
+
+-- List 2: Network Checks
+(2, 'mkdir -p /tmp/aiot_test', 'Tạo thư mục cha /tmp/aiot_test', FALSE, FALSE, TRUE, 1),
+(2, 'touch /tmp/aiot_test/network.txt', 'Tạo file network.txt', FALSE, FALSE, TRUE, 1),
+(2, 'echo "Network config" > /tmp/aiot_test/network.txt', 'Ghi nội dung vào network.txt', FALSE, FALSE, TRUE, 1),
+(2, 'cat /tmp/aiot_test/network.txt', 'Xem nội dung network.txt', FALSE, FALSE, TRUE, 1),
+
+-- List 3: Temperature Controls
+(3, 'mkdir -p /tmp/aiot_test', 'Tạo thư mục cha /tmp/aiot_test', FALSE, FALSE, TRUE, 1),
+(3, 'touch /tmp/aiot_test/temp.txt', 'Tạo file temp.txt', FALSE, FALSE, TRUE, 1),
+(3, 'echo "Temperature: 25C" > /tmp/aiot_test/temp.txt', 'Ghi nhiệt độ vào temp.txt', FALSE, FALSE, TRUE, 1),
+(3, 'cat /tmp/aiot_test/temp.txt', 'Xem nội dung temp.txt', FALSE, FALSE, TRUE, 1),
+
+-- List 4: Maintenance Tasks
+(4, 'mkdir -p /tmp/aiot_test', 'Tạo thư mục cha /tmp/aiot_test', FALSE, FALSE, TRUE, 1),
+(4, 'touch /tmp/aiot_test/maintain.txt', 'Tạo file maintain.txt', FALSE, FALSE, TRUE, 1),
+(4, 'echo "Maintenance log" > /tmp/aiot_test/maintain.txt', 'Ghi log bảo trì vào maintain.txt', FALSE, FALSE, TRUE, 1),
+(4, 'cat /tmp/aiot_test/maintain.txt', 'Xem nội dung maintain.txt', FALSE, FALSE, TRUE, 1),
+
+-- List 5: Advanced Operations
+(5, 'mkdir -p /tmp/aiot_test', 'Tạo thư mục cha /tmp/aiot_test', FALSE, FALSE, TRUE, 1),
+(5, 'touch /tmp/aiot_test/advanced.txt', 'Tạo file advanced.txt', FALSE, FALSE, TRUE, 1),
+(5, 'echo "Advanced operation" > /tmp/aiot_test/advanced.txt', 'Ghi nội dung vào advanced.txt', FALSE, FALSE, TRUE, 1),
+(5, 'cat /tmp/aiot_test/advanced.txt', 'Xem nội dung advanced.txt', FALSE, FALSE, TRUE, 1);
 
 -- Profiles
 INSERT INTO profiles (profile_name, list_id, group_id, description, created_by, is_active) VALUES
@@ -403,3 +422,4 @@ COMMIT;
 
 -- Cập nhật devices đã tồn tại với giá trị null (chưa được gán)
 COMMENT ON COLUMN devices.assigned_by IS 'ID người dùng đã gán thiết bị vào nhóm, khác với created_by là người tạo thiết bị'; 
+

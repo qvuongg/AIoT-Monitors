@@ -12,6 +12,10 @@ const Dashboard = ({ user }) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [selectedGroup, setSelectedGroup] = useState('');
+    const [fileEdits, setFileEdits] = useState([]);
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const limit = 10;
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -43,6 +47,10 @@ const Dashboard = ({ user }) => {
                     setUserProfiles(fetchedProfiles);
                 } else {
                     setUserProfiles({ profiles: [], active_sessions: [] });
+                }
+
+                if (user.is_supervisor) {
+                    fetchFileEdits();
                 }
             } catch (err) {
                 console.error('Dashboard data error:', err);
@@ -109,6 +117,112 @@ const Dashboard = ({ user }) => {
 
             setError(errorMessage);
         }
+    };
+
+    const fetchFileEdits = async () => {
+        try {
+            setLoading(true);
+            const offset = (page - 1) * limit;
+            const response = await axios.get(`/api/sessions/file-edits?limit=${limit}&offset=${offset}`);
+            setFileEdits(response.data.file_edits);
+            setTotalPages(Math.ceil(response.data.total / limit));
+            setError(null);
+        } catch (err) {
+            setError('Failed to fetch file edit logs');
+            console.error('Error fetching file edits:', err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const renderFileEdits = () => {
+        if (loading) return <div>Loading file edit logs...</div>;
+        if (error) return <div className="error">{error}</div>;
+        if (fileEdits.length === 0) return <div>No file edits found</div>;
+
+        return (
+            <div className="file-edits-section">
+                <h2>File Edit Logs</h2>
+                <div className="table-container">
+                    <table className="file-edits-table">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>User</th>
+                                <th>Device</th>
+                                <th>File Path</th>
+                                <th>Edit Type</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {fileEdits.map(edit => (
+                                <tr key={edit.id}>
+                                    <td>{new Date(edit.edit_started_at).toLocaleString()}</td>
+                                    <td>{edit.user}</td>
+                                    <td>{edit.device?.name || 'Unknown'}</td>
+                                    <td>{edit.file_path}</td>
+                                    <td>{edit.edit_type}</td>
+                                    <td>
+                                        <button
+                                            onClick={() => showFileEditDetails(edit)}
+                                            className="btn btn-info btn-sm"
+                                        >
+                                            View Details
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+                {totalPages > 1 && (
+                    <div className="pagination">
+                        <button
+                            onClick={() => setPage(p => Math.max(1, p - 1))}
+                            disabled={page === 1}
+                        >
+                            Previous
+                        </button>
+                        <span>Page {page} of {totalPages}</span>
+                        <button
+                            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                            disabled={page === totalPages}
+                        >
+                            Next
+                        </button>
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    const showFileEditDetails = (edit) => {
+        // Hiển thị modal với chi tiết của file edit
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <h3>File Edit Details</h3>
+                <p><strong>Time:</strong> ${new Date(edit.edit_started_at).toLocaleString()}</p>
+                <p><strong>User:</strong> ${edit.user}</p>
+                <p><strong>Device:</strong> ${edit.device?.name || 'Unknown'}</p>
+                <p><strong>File Path:</strong> ${edit.file_path}</p>
+                <p><strong>Edit Type:</strong> ${edit.edit_type}</p>
+                <div class="file-content">
+                    <div class="content-before">
+                        <h4>Before</h4>
+                        <pre>${edit.content_before || 'No content'}</pre>
+                    </div>
+                    <div class="content-after">
+                        <h4>After</h4>
+                        <pre>${edit.content_after || 'No content'}</pre>
+                    </div>
+                </div>
+                <button onclick="this.parentElement.parentElement.remove()">Close</button>
+            </div>
+        `;
+        document.body.appendChild(modal);
     };
 
     // Inline CSS cho dashboard thiết bị
@@ -429,6 +543,9 @@ const Dashboard = ({ user }) => {
                     </div>
                 </div>
             )}
+
+            {/* File Edit Logs section for supervisors */}
+            {user.is_supervisor && renderFileEdits()}
         </div>
     );
 };

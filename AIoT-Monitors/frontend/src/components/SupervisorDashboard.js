@@ -125,7 +125,7 @@ const SupervisorDashboard = () => {
   const fetchFileEditLogs = async (sessionId) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:8000/api/sessions/${sessionId}/file-edits`, {
+      const response = await fetch(`http://localhost:8000/api/sessions/file-edits?session_id=${sessionId}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -168,7 +168,7 @@ const SupervisorDashboard = () => {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           status: 'terminated',
           terminated_by: currentUserId
         }),
@@ -336,8 +336,8 @@ const SupervisorDashboard = () => {
       {sessionTabValue === 0 ? renderSessionsTable(sessions, true) : renderSessionsTable(nonActiveSessions, false)}
 
       {/* Session Details Dialog */}
-      <Dialog 
-        open={dialogOpen} 
+      <Dialog
+        open={dialogOpen}
         onClose={handleCloseDialog}
         maxWidth="md"
         fullWidth
@@ -362,68 +362,68 @@ const SupervisorDashboard = () => {
             <Tab label="Commands" />
             <Tab label="File Edits" />
           </Tabs>
-          
+
           {sessionTabValue === 0 && selectedSession && (
             <List>
               <ListItem>
-                <ListItemText 
-                  primary="Session ID" 
-                  secondary={selectedSession.id} 
+                <ListItemText
+                  primary="Session ID"
+                  secondary={selectedSession.id}
                 />
               </ListItem>
               <Divider />
               <ListItem>
-                <ListItemText 
-                  primary="Operator" 
-                  secondary={selectedSession.user_name || 'N/A'} 
+                <ListItemText
+                  primary="Operator"
+                  secondary={selectedSession.user_name || 'N/A'}
                 />
               </ListItem>
               <Divider />
               <ListItem>
-                <ListItemText 
-                  primary="Device" 
-                  secondary={selectedSession.device_name || 'N/A'} 
+                <ListItemText
+                  primary="Device"
+                  secondary={selectedSession.device_name || 'N/A'}
                 />
               </ListItem>
               <Divider />
               <ListItem>
-                <ListItemText 
-                  primary="Start Time" 
-                  secondary={formatDateTime(selectedSession.start_time)} 
+                <ListItemText
+                  primary="Start Time"
+                  secondary={formatDateTime(selectedSession.start_time)}
                 />
               </ListItem>
               <Divider />
               <ListItem>
-                <ListItemText 
-                  primary="Duration" 
-                  secondary={formatDuration(selectedSession.duration)} 
+                <ListItemText
+                  primary="Duration"
+                  secondary={formatDuration(selectedSession.duration)}
                 />
               </ListItem>
               <Divider />
               <ListItem>
-                <ListItemText 
-                  primary="Status" 
+                <ListItemText
+                  primary="Status"
                   secondary={
                     <Chip
                       label={selectedSession.status}
                       color={getStatusColor(selectedSession.status)}
                       size="small"
                     />
-                  } 
+                  }
                 />
               </ListItem>
               <Divider />
               <ListItem>
-                <ListItemText 
-                  primary="IP Address" 
-                  secondary={selectedSession.ip_address || 'N/A'} 
+                <ListItemText
+                  primary="IP Address"
+                  secondary={selectedSession.ip_address || 'N/A'}
                 />
               </ListItem>
               <Divider />
               <ListItem>
-                <ListItemText 
-                  primary="Command Count" 
-                  secondary={selectedSession.command_count || 0} 
+                <ListItemText
+                  primary="Command Count"
+                  secondary={selectedSession.command_count || 0}
                 />
               </ListItem>
             </List>
@@ -437,7 +437,6 @@ const SupervisorDashboard = () => {
                     <TableCell>Time</TableCell>
                     <TableCell>Command</TableCell>
                     <TableCell>Status</TableCell>
-                    <TableCell>Execution Time</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -459,9 +458,7 @@ const SupervisorDashboard = () => {
                             size="small"
                           />
                         </TableCell>
-                        <TableCell>
-                          {command.execution_time ? `${command.execution_time}ms` : 'N/A'}
-                        </TableCell>
+
                       </TableRow>
                     ))
                   ) : (
@@ -529,8 +526,8 @@ const SupervisorDashboard = () => {
         </DialogContent>
         <DialogActions>
           {selectedSession?.status.toLowerCase() === 'active' && (
-            <Button 
-              variant="contained" 
+            <Button
+              variant="contained"
               color="error"
               startIcon={<WarningIcon />}
               onClick={handleOpenKillDialog}
@@ -555,8 +552,8 @@ const SupervisorDashboard = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseKillDialog}>Cancel</Button>
-          <Button 
-            onClick={handleKillSession} 
+          <Button
+            onClick={handleKillSession}
             color="error"
             variant="contained"
           >

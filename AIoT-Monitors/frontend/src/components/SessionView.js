@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { sessionService, commandService } from '../services/api';
 import axios from 'axios';
+import { Dialog, DialogTitle, DialogContent, DialogActions, TextField, Button, IconButton, Snackbar } from '@mui/material';
+import { Close as CloseIcon } from '@mui/icons-material';
 
 const SessionView = ({ user }) => {
     // Modern styles with better colors and layout
@@ -199,6 +201,29 @@ const SessionView = ({ user }) => {
             padding: '10px 15px',
             borderRadius: '4px',
             marginBottom: '15px'
+        },
+        allowedCommandsContainer: {
+            maxHeight: '400px',
+            overflowY: 'auto',
+            border: '1px solid #ddd',
+            borderRadius: '4px',
+            backgroundColor: '#f5f5f5',
+        },
+        fileEditCommand: {
+            borderLeft: '3px solid #4caf50',
+        },
+        fileEditBadge: {
+            display: 'inline-block',
+            padding: '2px 6px',
+            backgroundColor: '#4caf50',
+            color: 'white',
+            borderRadius: '4px',
+            fontSize: '12px',
+            marginTop: '4px',
+        },
+        noCommands: {
+            color: '#adb5bd',
+            fontStyle: 'italic'
         }
     };
 
@@ -215,6 +240,29 @@ const SessionView = ({ user }) => {
     const [activeProfile, setActiveProfile] = useState(null);
     const outputContainerRef = useRef(null);
     const [buttonHover, setButtonHover] = useState(false);
+    const [commandOutput, setCommandOutput] = useState('');
+    const [isExecuting, setIsExecuting] = useState(false);
+    const [fileContent, setFileContent] = useState('');
+    const [isEditingFile, setIsEditingFile] = useState(false);
+    const [currentFilePath, setCurrentFilePath] = useState('');
+    const [editType, setEditType] = useState(''); // 'create', 'modify', or 'delete'
+    const [snackbar, setSnackbar] = useState({
+        open: false,
+        message: '',
+        severity: 'info'
+    });
+
+    const showSnackbar = (message, severity = 'info') => {
+        setSnackbar({
+            open: true,
+            message,
+            severity
+        });
+    };
+
+    const handleCloseSnackbar = () => {
+        setSnackbar(prev => ({ ...prev, open: false }));
+    };
 
     useEffect(() => {
         const fetchSessionData = async () => {
@@ -321,8 +369,73 @@ const SessionView = ({ user }) => {
         }
     };
 
-    const handleSelectCommand = (command) => {
-        setCurrentCommand(command.command);
+    const handleSelectCommand = async (cmd) => {
+        if (cmd.is_file_edit) {
+            // Extract file path from command (assuming format like 'nano /path/to/file')
+            const filePath = cmd.command.split(' ').slice(1).join(' ');
+            setCurrentFilePath(filePath);
+            setEditType('modify');
+
+            try {
+                const response = await fetch(`http://localhost:8000/api/sessions/${session.id}/read-file`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ file_path: filePath }),
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    setFileContent(data.content);
+                    setIsEditingFile(true);
+                } else {
+                    showSnackbar(data.error || 'Failed to read file', 'error');
+                }
+            } catch (error) {
+                console.error('Error reading file:', error);
+                showSnackbar('Error reading file', 'error');
+            }
+        } else {
+            executeCommand(cmd.command);
+        }
+    };
+
+    const handleSaveFile = async () => {
+        try {
+            const response = await fetch(`http://localhost:8000/api/sessions/${session.id}/edit-file`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    file_path: currentFilePath,
+                    content: fileContent,
+                    edit_type: editType
+                }),
+            });
+
+            const data = await response.json();
+            if (response.ok) {
+                showSnackbar('File saved successfully', 'success');
+                setIsEditingFile(false);
+                setFileContent('');
+                setCurrentFilePath('');
+            } else {
+                showSnackbar(data.error || 'Failed to save file', 'error');
+            }
+        } catch (error) {
+            console.error('Error saving file:', error);
+            showSnackbar('Error saving file', 'error');
+        }
+    };
+
+    const handleCancelEdit = () => {
+        setIsEditingFile(false);
+        setFileContent('');
+        setCurrentFilePath('');
     };
 
     const handleEndSession = async () => {
@@ -331,6 +444,23 @@ const SessionView = ({ user }) => {
             navigate('/dashboard');
         } catch (err) {
             setError(err.response?.data?.error || 'Failed to end session. Please try again.');
+        }
+    };
+
+    const executeCommand = async (command) => {
+        try {
+            const response = await axios.post(`/api/sessions/${session.id}/commands`, {
+                command: command
+            });
+
+            if (response.data.success) {
+                setCommandHistory(prev => [...prev, response.data.command_log]);
+                setError('');
+            }
+        } catch (err) {
+            const errorMessage = err.response?.data?.error || 'Failed to execute command';
+            setError(errorMessage);
+            showSnackbar(errorMessage, 'error');
         }
     };
 
@@ -445,35 +575,41 @@ const SessionView = ({ user }) => {
                 {/* Allowed commands */}
                 <div style={styles.allowedCommands}>
                     <div style={styles.allowedCommandsTitle}>Allowed Commands</div>
-                    {allowedCommands.length > 0 ? (
-                        <ul style={styles.allowedCommandsList}>
-                            {allowedCommands.map((cmd, index) => (
-                                <li
-                                    key={index}
-                                    style={{
-                                        ...styles.allowedCommandItem,
-                                        ...(hoveredCommand === index ? styles.allowedCommandItemHover : {})
-                                    }}
-                                    onMouseEnter={() => setHoveredCommand(index)}
-                                    onMouseLeave={() => setHoveredCommand(null)}
-                                    onClick={() => handleSelectCommand(cmd)}
-                                >
-                                    <div style={{ fontFamily: 'monospace' }}>
-                                        {cmd.command}
-                                    </div>
-                                    {cmd.description && (
-                                        <div style={styles.commandDescription}>
-                                            {cmd.description}
+                    <div style={styles.allowedCommandsContainer}>
+                        {allowedCommands.length > 0 ? (
+                            <ul style={styles.allowedCommandsList}>
+                                {allowedCommands.map((cmd, index) => (
+                                    <li
+                                        key={index}
+                                        style={{
+                                            ...styles.allowedCommandItem,
+                                            ...(hoveredCommand === index ? styles.allowedCommandItemHover : {}),
+                                            ...(cmd.is_file_edit ? styles.fileEditCommand : {})
+                                        }}
+                                        onMouseEnter={() => setHoveredCommand(index)}
+                                        onMouseLeave={() => setHoveredCommand(null)}
+                                        onClick={() => handleSelectCommand(cmd)}
+                                    >
+                                        <div style={{ fontFamily: 'monospace' }}>
+                                            {cmd.command}
                                         </div>
-                                    )}
-                                </li>
-                            ))}
-                        </ul>
-                    ) : (
-                        <div style={{ color: '#adb5bd', fontStyle: 'italic' }}>
-                            No commands have been assigned to your profile.
-                        </div>
-                    )}
+                                        {cmd.description && (
+                                            <div style={styles.commandDescription}>
+                                                {cmd.description}
+                                            </div>
+                                        )}
+                                        {cmd.is_file_edit && (
+                                            <div style={styles.fileEditBadge}>
+                                                File Edit
+                                            </div>
+                                        )}
+                                    </li>
+                                ))}
+                            </ul>
+                        ) : (
+                            <div style={styles.noCommands}>No commands available</div>
+                        )}
+                    </div>
                 </div>
 
                 {/* End session button */}
@@ -552,6 +688,59 @@ const SessionView = ({ user }) => {
                     )}
                 </div>
             </div>
+
+            {/* File Editor Dialog */}
+            <Dialog
+                open={isEditingFile}
+                onClose={handleCancelEdit}
+                maxWidth="md"
+                fullWidth
+            >
+                <DialogTitle>
+                    Edit File: {currentFilePath}
+                    <IconButton
+                        aria-label="close"
+                        onClick={handleCancelEdit}
+                        sx={{
+                            position: 'absolute',
+                            right: 8,
+                            top: 8,
+                        }}
+                    >
+                        <CloseIcon />
+                    </IconButton>
+                </DialogTitle>
+                <DialogContent>
+                    <TextField
+                        multiline
+                        fullWidth
+                        rows={20}
+                        value={fileContent}
+                        onChange={(e) => setFileContent(e.target.value)}
+                        variant="outlined"
+                        sx={{
+                            fontFamily: 'monospace',
+                            '& .MuiInputBase-input': {
+                                fontFamily: 'monospace',
+                            },
+                        }}
+                    />
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={handleCancelEdit}>Cancel</Button>
+                    <Button onClick={handleSaveFile} variant="contained" color="primary">
+                        Save
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Snackbar for notifications */}
+            <Snackbar
+                open={snackbar.open}
+                autoHideDuration={6000}
+                onClose={handleCloseSnackbar}
+                message={snackbar.message}
+            />
         </div>
     );
 };

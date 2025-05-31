@@ -5,9 +5,11 @@ from app.models.user import User
 from app.models.device import Device
 from app.models.session import Session, SessionStatus, CommandLog
 from app.models.command import Command
+from app.models.file_edit_log import FileEditLog
 from app.utils.ssh_client import SSHClient
 import paramiko
 import json
+import re
 
 sessions_bp = Blueprint('sessions', __name__)
 
@@ -96,47 +98,56 @@ def execute_command(session_id):
     device = Device.query.get(session.device_id)
     raw_command = data['command'].strip()
     
-    # Validate the command against operator's profiles
-    command_allowed = False
-    matching_command = None
+    # Kiểm tra xem lệnh có liên quan đến chỉnh sửa file không
+    is_file_edit = False
+    file_path = None
+    edit_type = None
     
-    # Loop through the user's profiles to find the command
-    for profile in current_user.profiles:
-        if not profile.command_list:
-            continue
-            
-        # Check if any command in the profile's command list matches the raw command
-        for cmd in profile.command_list.commands:
-            if cmd.command_text.strip() == raw_command:
-                command_allowed = True
-                matching_command = cmd
-                break
-                
-        if command_allowed:
+    # Các pattern phổ biến cho lệnh chỉnh sửa file
+    file_edit_patterns = {
+        'create': r'(?:touch|mkdir|>)\s+([^\s]+)',
+        'modify': r'(?:echo|cat|sed|awk)\s+.*?>\s+([^\s]+)',
+        'delete': r'(?:rm|rmdir)\s+([^\s]+)'
+    }
+    
+    for edit_type, pattern in file_edit_patterns.items():
+        match = re.search(pattern, raw_command)
+        if match:
+            is_file_edit = True
+            file_path = match.group(1)
             break
-            
-    if not command_allowed:
-        return jsonify({
-            'error': 'You do not have permission to use this command',
-            'message': 'This command is not in your allowed commands list'
-        }), 403
     
-    # Execute the command via SSH
     try:
         print(f"Connecting to SSH: {device.ip_address}:{device.ssh_port} with user {device.username}")
         ssh_client = SSHClient(
             hostname=device.ip_address,
             port=device.ssh_port,
             username=device.username,
-            password=device.password,  # Sử dụng password từ device
+            password=device.password,
             authentication_method=device.authentication_method
         )
         
         # Connect to the device
         ssh_client.connect()
         
+        # Nếu là lệnh chỉnh sửa file, lưu nội dung trước khi thực hiện
+        content_before = None
+        if is_file_edit and file_path:
+            try:
+                content_before = ssh_client.read_file(file_path)
+            except:
+                content_before = None
+        
         # Execute the command
         exit_code, output = ssh_client.execute_command(raw_command)
+        
+        # Nếu là lệnh chỉnh sửa file và thực hiện thành công, lưu nội dung sau khi thực hiện
+        content_after = None
+        if is_file_edit and file_path and exit_code == 0:
+            try:
+                content_after = ssh_client.read_file(file_path)
+            except:
+                content_after = None
         
         # Close the connection
         ssh_client.close()
@@ -154,6 +165,21 @@ def execute_command(session_id):
         )
         
         db.session.add(command_log)
+        
+        # Nếu là lệnh chỉnh sửa file và thực hiện thành công, lưu vào file_edit_logs
+        if is_file_edit and file_path and exit_code == 0:
+            file_edit_log = FileEditLog(
+                session_id=session.session_id,
+                user_id=current_user.user_id,
+                device_id=device.device_id,
+                file_path=file_path,
+                edit_type=edit_type,
+                content_before=content_before,
+                content_after=content_after,
+                diff=None  # Có thể thêm logic tạo diff ở đây nếu cần
+            )
+            db.session.add(file_edit_log)
+        
         db.session.commit()
         
         return jsonify({
@@ -172,85 +198,101 @@ def execute_command(session_id):
         print(f"Error connecting to {device.ip_address}:{device.ssh_port}: {str(e)}")
         return jsonify({'error': f'Error: {str(e)}', 'success': False}), 500
 
-@sessions_bp.route('/<int:session_id>/edit-file', methods=['POST'])
+@sessions_bp.route('/<int:session_id>/read-file', methods=['POST'])
 @jwt_required()
-def edit_file(session_id):
-    """Edit a file in the session (Operator)"""
+def read_file(session_id):
+    """Read file content from device"""
     current_user_id = get_jwt_identity()
     current_user = User.query.get(current_user_id)
     
     if not current_user:
         return jsonify({'error': 'User not found'}), 404
     
-    # Chỉ cho phép operator chỉnh sửa file
-    if not current_user.is_operator():
-        return jsonify({'error': 'Only operators can edit files'}), 403
-    
     session = Session.query.get(session_id)
-    
     if not session:
         return jsonify({'error': 'Session not found'}), 404
     
-    # Check if the user owns this session
-    if session.user_id != current_user.user_id:
-        return jsonify({'error': 'You do not own this session'}), 403
-    
-    # Check if the session is active
-    if session.status != SessionStatus.ACTIVE:
-        return jsonify({'error': 'Session is not active'}), 400
+    # Check if the user has permission to access this session
+    if session.user_id != current_user.user_id and not (current_user.is_admin() or current_user.is_supervisor()):
+        return jsonify({'error': 'You do not have permission to access this session'}), 403
     
     data = request.get_json()
+    if not data or 'file_path' not in data:
+        return jsonify({'error': 'File path is required'}), 400
     
+    try:
+        # Create SSH client
+        ssh_client = SSHClient(
+            hostname=session.device.ip_address,
+            port=session.device.ssh_port,
+            username=session.device.username,
+            password=session.device.password,
+            authentication_method=session.device.authentication_method
+        )
+        
+        # Connect to device
+        ssh_client.connect()
+        
+        # Read file content
+        content = ssh_client.read_file(data['file_path'])
+        
+        # Close connection
+        ssh_client.close()
+        
+        return jsonify({
+            'content': content
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@sessions_bp.route('/<int:session_id>/edit-file', methods=['POST'])
+@jwt_required()
+def edit_file(session_id):
+    """Edit file content on device"""
+    current_user_id = get_jwt_identity()
+    current_user = User.query.get(current_user_id)
+    
+    if not current_user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    session = Session.query.get(session_id)
+    if not session:
+        return jsonify({'error': 'Session not found'}), 404
+    
+    # Check if the user has permission to access this session
+    if session.user_id != current_user.user_id and not (current_user.is_admin() or current_user.is_supervisor()):
+        return jsonify({'error': 'You do not have permission to access this session'}), 403
+    
+    data = request.get_json()
     if not data or 'file_path' not in data or 'content' not in data:
         return jsonify({'error': 'File path and content are required'}), 400
     
-    device = Device.query.get(session.device_id)
-    
-    # Execute file edit via SSH
     try:
+        # Create SSH client
         ssh_client = SSHClient(
-            hostname=device.ip_address,
-            port=device.ssh_port,
-            username=device.username,
-            password=device.password,  # Sử dụng password từ device
-            authentication_method=device.authentication_method
+            hostname=session.device.ip_address,
+            port=session.device.ssh_port,
+            username=session.device.username,
+            password=session.device.password,
+            authentication_method=session.device.authentication_method
         )
         
-        # Connect to the device
+        # Connect to device
         ssh_client.connect()
         
-        # Edit the file
-        exit_code, output = ssh_client.edit_file(data['file_path'], data['content'])
+        # Edit file
+        ssh_client.edit_file(data['file_path'], data['content'], data.get('edit_type', 'modify'))
         
-        # Close the connection
+        # Close connection
         ssh_client.close()
         
-        # Log the command
-        command_log = CommandLog(
-            session_id=session.session_id,
-            command_text=f"edit file: {data['file_path']}",
-            user_id=current_user.user_id,
-            device_id=device.device_id,
-            output=output,
-            status='success' if exit_code == 0 else 'failed',
-            execution_time=None,
-            is_approved=True
-        )
-        
-        db.session.add(command_log)
-        db.session.commit()
-        
         return jsonify({
-            'message': 'File edited successfully',
-            'command_log': command_log.to_dict()
+            'message': 'File edited successfully'
         }), 200
         
-    except paramiko.AuthenticationException:
-        return jsonify({'error': 'Authentication failed'}), 401
-    except paramiko.SSHException as e:
-        return jsonify({'error': f'SSH error: {str(e)}'}), 500
     except Exception as e:
-        return jsonify({'error': f'Error: {str(e)}'}), 500
+        return jsonify({'error': str(e)}), 500
 
 @sessions_bp.route('/<int:session_id>', methods=['PUT'])
 @jwt_required()
@@ -386,7 +428,7 @@ def get_session(session_id):
     
     # Get command history for this session
     try:
-        commands = CommandLog.query.filter_by(session_id=session_id).order_by(CommandLog.executed_at.desc()).all()
+        commands = CommandLog.query.filter_by(session_id=session_id).order_by(CommandLog.executed_at.asc()).all()
         session_data['commands'] = [cmd.to_dict() for cmd in commands]
     except Exception as e:
         print(f"Error getting command history: {str(e)}")
@@ -451,6 +493,54 @@ def get_session_commands(session_id):
     if session.user_id != current_user.user_id and not (current_user.is_admin() or current_user.is_supervisor()):
         return jsonify({'error': 'You do not have permission to view this session'}), 403
     
+    commands = CommandLog.query.filter_by(session_id=session_id).order_by(CommandLog.executed_at.asc()).all()
     return jsonify({
-        'commands': [command.to_dict() for command in session.command_logs]
+        'commands': [command.to_dict() for command in commands]
+    }), 200
+
+@sessions_bp.route('/file-edits', methods=['GET'])
+@jwt_required()
+def get_file_edits():
+    """Get all file edit logs (Supervisor only)"""
+    current_user_id = get_jwt_identity()
+    current_user = User.query.get(current_user_id)
+    
+    if not current_user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    # Chỉ cho phép supervisor xem file edit logs
+    if not current_user.is_supervisor():
+        return jsonify({'error': 'Only supervisors can view file edit logs'}), 403
+    
+    # Lấy các tham số phân trang và lọc
+    limit = request.args.get('limit', 20, type=int)
+    offset = request.args.get('offset', 0, type=int)
+    device_id = request.args.get('device_id', type=int)
+    user_id = request.args.get('user_id', type=int)
+    session_id = request.args.get('session_id', type=int)
+    
+    # Xây dựng query
+    query = FileEditLog.query
+    
+    if device_id:
+        query = query.filter(FileEditLog.device_id == device_id)
+    if user_id:
+        query = query.filter(FileEditLog.user_id == user_id)
+    if session_id:
+        query = query.filter(FileEditLog.session_id == session_id)
+    
+    # Sắp xếp theo thời gian giảm dần (mới nhất lên đầu)
+    query = query.order_by(FileEditLog.edit_started_at.desc())
+    
+    # Lấy tổng số records
+    total = query.count()
+    
+    # Áp dụng phân trang
+    file_edits = query.offset(offset).limit(limit).all()
+    
+    return jsonify({
+        'file_edits': [edit.to_dict() for edit in file_edits],
+        'total': total,
+        'limit': limit,
+        'offset': offset
     }), 200
